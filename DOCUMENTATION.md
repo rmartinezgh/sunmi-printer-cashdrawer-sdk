@@ -116,25 +116,29 @@ public static final byte[] CMD_ASB_ENABLE = new byte[] { 0x1D, 0x61, 0x01 };    
   - Sent out-of-band; executes immediately even if the print buffer is full.
   - The printer firmware reads the immediate voltage level on Pin 3 and transmits the status byte.
 
-### 3.3 Packet Decoding Specifications:
-The driver processes both raw 1-byte responses and Sunmi 4-byte encapsulated responses:
+### 3.3 Enhanced Stream Framing & Multi-Protocol Packet Decoding
+In production Bluetooth RFCOMM environments, responses may arrive fragmented across chunk boundaries or coalesced with ASB asynchronous pushes. The enhanced driver implements a stream accumulator and packet framing engine:
 
 ```java
-int read = inputStream.read(buffer);
-final byte statusByte;
-if (read == 1) {
-    statusByte = buffer[0];
-} else if (read >= 4 && (buffer[0] & 0xFF) == 0x37 && (buffer[1] & 0xFF) == 0x09) {
-    // Official Sunmi StatusTask multi-byte packet header: 0x37 0x09
-    statusByte = buffer[2];
-} else {
-    statusByte = buffer[0];
-}
-
-// Bit 2 Extraction:
-int bit2 = (statusByte >> 2) & 0x01;
-boolean isOpen = invertPolarity ? (bit2 == 0) : (bit2 == 1);
+// Resilient stream framing supporting all 4 ESC/POS status protocols:
+// 1. Sunmi 4-Byte Frame (Header: 0x37 0x09) -> statusByte = buf[offset + 2]
+// 2. Standard ESC/POS ASB 4-Byte Frame (Header: (b0 & 0x93) == 0x10) -> statusByte = buf[offset]
+// 3. Real-Time DLE EOT 1-Byte Response ((b0 & 0x93) == 0x12) -> statusByte = buf[offset]
+// 4. ESC/POS GS r 1 1-Byte Response (0x00 or 0x01) -> Pin 3 state
 ```
+
+### 3.4 Microswitch Contact De-bouncing & Adaptive Polling
+1. **Mechanical De-Bouncing**: Requires two consecutive confirmed matching samples before committing a transition, filtering out mechanical leaf switch chatter (5–30ms oscillations) when the drawer slams shut or pops open.
+2. **Adaptive Polling Intervals**:
+   - **Normal Tracking Rate**: 250ms (ultra-responsive continuous tracking).
+   - **Burst Tracking Mode (80ms)**: Automatically triggers 80ms high-speed polling for 2,500ms immediately when a solenoid pulse is dispatched, ensuring sub-100ms capture of the latch release.
+3. **Self-Calibrating Auto-Polarity Detection**:
+   - Tapping **`⚡ Auto-Detect`** fires a 400ms pulse on Pin 2 and monitors the microswitch voltage edge transition.
+   - If Pin 3 drops from HIGH to LOW on pop $\rightarrow$ Confirmed **Normally Closed (N.C.)** (`invertPolarity = true`).
+   - If Pin 3 rises from LOW to HIGH on pop $\rightarrow$ Confirmed **Normally Open (N.O.)** (`invertPolarity = false`).
+   - The driver automatically calibrates and locks in the verified configuration with zero manual intervention.
+4. **Sensor Fault & Cable Disconnect Diagnostics**:
+   - If 3 kicks are fired without any microswitch transition detected on Pin 3, the driver generates a diagnostic alarm: `"⚠️ RJ12 Sensor Static: Pin 3 bit did not change after 3 kicks. Check RJ12 cable or physical key lock."`
 
 #### Status Byte Bit Allocation:
 - **Bit 0**: Fixed (`0`)

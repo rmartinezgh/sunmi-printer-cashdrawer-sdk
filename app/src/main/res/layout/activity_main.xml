@@ -366,6 +366,39 @@
 
                 </LinearLayout>
 
+                <!-- Sensor Telemetry & Diagnostics Ribbon -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:background="#0A0E17"
+                    android:paddingLeft="10dp"
+                    android:paddingRight="10dp"
+                    android:paddingTop="6dp"
+                    android:paddingBottom="6dp"
+                    android:layout_marginTop="8dp">
+
+                    <TextView
+                        android:id="@+id/tvSignalHealth"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="⚡ Sensor: Ready | Adaptive Polling (250ms) + ASB"
+                        android:textColor="#38BDF8"
+                        android:textSize="10sp"
+                        android:fontFamily="monospace" />
+
+                    <TextView
+                        android:id="@+id/tvSignalLatency"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Latency: 0ms"
+                        android:textColor="#94A3B8"
+                        android:textSize="10sp"
+                        android:fontFamily="monospace" />
+                </LinearLayout>
+
             </LinearLayout>
 
             <!-- Bluetooth & Peripheral Controls -->
@@ -447,17 +480,37 @@
                         android:backgroundTint="#334155" />
                 </LinearLayout>
 
-                <!-- Polarity Switch Row (N.C. vs N.O. Microswitch) -->
-                <Button
-                    android:id="@+id/btnTogglePolarity"
+                <!-- Polarity Controls (Manual Toggle & Auto-Detect) -->
+                <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="40dp"
-                    android:text="🔄 Polarity: INVERTED (N.C. 0=Open, 1=Closed)"
-                    android:textColor="#34D399"
-                    android:textSize="11sp"
-                    android:textStyle="bold"
-                    android:backgroundTint="#064E3B"
-                    android:layout_marginBottom="8dp" />
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="8dp">
+
+                    <Button
+                        android:id="@+id/btnTogglePolarity"
+                        android:layout_width="0dp"
+                        android:layout_height="40dp"
+                        android:layout_weight="1"
+                        android:text="🔄 Polarity: INVERTED (N.C.)"
+                        android:textColor="#34D399"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="#064E3B"
+                        android:layout_marginRight="6dp" />
+
+                    <Button
+                        android:id="@+id/btnAutoCalibrate"
+                        android:layout_width="wrap_content"
+                        android:layout_height="40dp"
+                        android:text="⚡ Auto-Detect"
+                        android:textColor="#FBBF24"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="#78350F"
+                        android:paddingLeft="12dp"
+                        android:paddingRight="12dp" />
+                </LinearLayout>
 
                 <!-- Manual & Simulation Action Row -->
                 <LinearLayout

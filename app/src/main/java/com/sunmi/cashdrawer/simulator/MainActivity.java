@@ -43,8 +43,11 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
     private TextView tvOpenCount;
     private TextView tvBtStatusPill;
     private TextView tvDeviceHeaderLabel;
+    private TextView tvSignalHealth;
+    private TextView tvSignalLatency;
     private Button btnConnectBt;
     private Button btnTogglePolarity;
+    private Button btnAutoCalibrate;
 
     private ListView lvDrawerLogs;
     private LogAdapter logAdapter;
@@ -84,8 +87,11 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
         tvOpenCount = findViewById(R.id.tvOpenCount);
         tvBtStatusPill = findViewById(R.id.tvBtStatusPill);
         tvDeviceHeaderLabel = findViewById(R.id.tvDeviceHeaderLabel);
+        tvSignalHealth = findViewById(R.id.tvSignalHealth);
+        tvSignalLatency = findViewById(R.id.tvSignalLatency);
         btnConnectBt = findViewById(R.id.btnConnectBt);
         btnTogglePolarity = findViewById(R.id.btnTogglePolarity);
+        btnAutoCalibrate = findViewById(R.id.btnAutoCalibrate);
 
         lvDrawerLogs = findViewById(R.id.lvDrawerLogs);
         logAdapter = new LogAdapter(this, logList);
@@ -117,6 +123,11 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
 
         // Polarity Toggle
         btnTogglePolarity.setOnClickListener(v -> togglePolarity());
+
+        // Polarity Auto-Calibrate (detects microswitch edge on kick)
+        if (btnAutoCalibrate != null) {
+            btnAutoCalibrate.setOnClickListener(v -> handleAutoCalibrateAction());
+        }
 
         // Kick Drawer via Bluetooth (NT311 ESC/POS)
         findViewById(R.id.btnKickBt).setOnClickListener(v -> kickCashDrawerViaBluetooth());
@@ -188,13 +199,42 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
         if (btnTogglePolarity == null) return;
         boolean isInverted = bluetoothManager.isInvertPolarity();
         if (isInverted) {
-            btnTogglePolarity.setText("🔄 Polarity: INVERTED (N.C. 0=Open, 1=Closed)");
+            btnTogglePolarity.setText("🔄 Polarity: INVERTED (N.C.)");
             btnTogglePolarity.setTextColor(Color.parseColor("#34D399"));
             btnTogglePolarity.setBackgroundColor(Color.parseColor("#064E3B"));
         } else {
-            btnTogglePolarity.setText("🔄 Polarity: NORMAL (N.O. 1=Open, 0=Closed)");
+            btnTogglePolarity.setText("🔄 Polarity: NORMAL (N.O.)");
             btnTogglePolarity.setTextColor(Color.parseColor("#93C5FD"));
             btnTogglePolarity.setBackgroundColor(Color.parseColor("#1E3A8A"));
+        }
+    }
+
+    private void handleAutoCalibrateAction() {
+        if (bluetoothManager.isConnected()) {
+            Toast.makeText(this, "⚡ Firing test pulse... calibrating microswitch polarity", Toast.LENGTH_SHORT).show();
+            bluetoothManager.startAutoCalibration();
+            hardwareSimulator.kickBySolenoid(0, 50, 500);
+            addLog(new DrawerEvent(
+                    DrawerEvent.Type.STATUS_QUERY,
+                    "Auto-Polarity Calibration Initiated",
+                    "Dispatched 400ms pulse to Pin 2. High-speed burst tracking active (80ms).",
+                    "Analyzing microswitch voltage edge transition...",
+                    false
+            ));
+        } else {
+            // Simulator demonstration mode
+            boolean newInvert = !bluetoothManager.isInvertPolarity();
+            bluetoothManager.setInvertPolarity(newInvert);
+            updatePolarityButtonUI();
+            hardwareSimulator.kickBySolenoid(0, 50, 500);
+            Toast.makeText(this, "Simulation: Calibrated to " + (newInvert ? "INVERTED (N.C.)" : "NORMAL (N.O.)"), Toast.LENGTH_SHORT).show();
+            addLog(new DrawerEvent(
+                    DrawerEvent.Type.STATUS_QUERY,
+                    "Simulated Polarity Calibration",
+                    "Auto-calibrated polarity to: " + (newInvert ? "INVERTED (N.C.)" : "NORMAL (N.O.)"),
+                    "Connect NT311 for live hardware microswitch calibration",
+                    false
+            ));
         }
     }
 
@@ -391,7 +431,7 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
     }
 
     @Override
-    public void onStatusByteReceived(byte statusByte, boolean isDrawerOpen, boolean isCoverOpen, boolean isPaperOut, String statusSummary) {
+    public void onStatusByteReceived(byte statusByte, int bit2, boolean isDrawerOpen, boolean isCoverOpen, boolean isPaperOut, String statusSummary, long latencyMs) {
         // Real-time hardware status received from Sunmi NT311!
         if (isDrawerOpen != hardwareSimulator.isOpen()) {
             if (isDrawerOpen) {
@@ -401,15 +441,51 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
             }
         }
 
+        // Live telemetry updates
+        if (tvSignalHealth != null) {
+            String polStr = bluetoothManager.isInvertPolarity() ? "Inverted (N.C.)" : "Normal (N.O.)";
+            tvSignalHealth.setText(String.format(Locale.getDefault(), "⚡ Pin 3: %s (Bit2=%d) | Polarity: %s | ASB+DLE EOT",
+                    (bit2 == 1 ? "HIGH" : "LOW"), bit2, polStr));
+        }
+        if (tvSignalLatency != null) {
+            tvSignalLatency.setText(latencyMs > 0 ? (latencyMs + "ms") : "<5ms");
+        }
+
         addLog(new DrawerEvent(
                 DrawerEvent.Type.BT_STATUS,
-                "NT311 Hardware Status Byte Received",
+                "NT311 Hardware Status Decoded",
                 statusSummary,
-                String.format("Status Byte: 0x%02X (Bit 2 = %d, Polarity = %s)", 
+                String.format(Locale.getDefault(), "Status Byte: 0x%02X | Bit 2: %d (%s) | Latency: %dms", 
                         statusByte, 
-                        (statusByte >> 2) & 0x01,
-                        bluetoothManager.isInvertPolarity() ? "Inverted" : "Normal"),
+                        bit2,
+                        (bit2 == 1 ? "HIGH" : "LOW"),
+                        latencyMs),
                 false
+        ));
+    }
+
+    @Override
+    public void onPolarityAutoCalibrated(boolean isInverted, String reason) {
+        updatePolarityButtonUI();
+        Toast.makeText(this, "⚡ Polarity Auto-Calibrated: " + (isInverted ? "INVERTED (N.C.)" : "NORMAL (N.O.)"), Toast.LENGTH_LONG).show();
+        addLog(new DrawerEvent(
+                DrawerEvent.Type.STATUS_QUERY,
+                "⚡ Smart Auto-Polarity Calibrated!",
+                "Calibrated to: " + (isInverted ? "INVERTED (N.C. 0=Open, 1=Closed)" : "NORMAL (N.O. 1=Open, 0=Closed)"),
+                reason,
+                false
+        ));
+    }
+
+    @Override
+    public void onSensorDiagnosticWarning(String warning) {
+        Toast.makeText(this, warning, Toast.LENGTH_LONG).show();
+        addLog(new DrawerEvent(
+                DrawerEvent.Type.ALERT_TAMPER,
+                "Hardware Sensor Warning",
+                warning,
+                "Check RJ12 6-pin cable and mechanical key lock position",
+                true
         ));
     }
 
