@@ -17,10 +17,12 @@ import android.os.Bundle;
 import android.os.Vibrator;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.util.ArrayList;
@@ -46,8 +48,11 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
     private TextView tvSignalHealth;
     private TextView tvSignalLatency;
     private Button btnConnectBt;
+    private Button btnConnectLan;
     private Button btnTogglePolarity;
     private Button btnAutoCalibrate;
+
+    private SunmiLanScanner lanScanner;
 
     private ListView lvDrawerLogs;
     private LogAdapter logAdapter;
@@ -90,6 +95,7 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
         tvSignalHealth = findViewById(R.id.tvSignalHealth);
         tvSignalLatency = findViewById(R.id.tvSignalLatency);
         btnConnectBt = findViewById(R.id.btnConnectBt);
+        btnConnectLan = findViewById(R.id.btnConnectLan);
         btnTogglePolarity = findViewById(R.id.btnTogglePolarity);
         btnAutoCalibrate = findViewById(R.id.btnAutoCalibrate);
 
@@ -120,6 +126,9 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
     private void setupListeners() {
         // Bluetooth Connect Button
         btnConnectBt.setOnClickListener(v -> handleBluetoothConnectAction());
+
+        // Wi-Fi / Ethernet LAN Connect Button
+        btnConnectLan.setOnClickListener(v -> handleLanConnectAction());
 
         // Polarity Toggle
         btnTogglePolarity.setOnClickListener(v -> togglePolarity());
@@ -304,6 +313,122 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
         builder.show();
     }
 
+    private void handleLanConnectAction() {
+        if (bluetoothManager.isConnected() && bluetoothManager.getConnectionType() == SunmiBluetoothManager.ConnectionType.NETWORK) {
+            bluetoothManager.disconnect();
+            return;
+        }
+        showLanConnectDialog();
+    }
+
+    private void showLanConnectDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        View view = LayoutInflater.from(this).inflate(R.layout.dialog_connect_lan, null);
+        builder.setView(view);
+
+        final AlertDialog dialog = builder.create();
+
+        final EditText etPrinterIp = view.findViewById(R.id.etPrinterIp);
+        final EditText etPrinterPort = view.findViewById(R.id.etPrinterPort);
+        final Button btnScanLan = view.findViewById(R.id.btnScanLan);
+        final ProgressBar pbScanProgress = view.findViewById(R.id.pbScanProgress);
+        final TextView tvScanStatus = view.findViewById(R.id.tvScanStatus);
+        final ListView lvDiscovered = view.findViewById(R.id.lvDiscoveredPrinters);
+
+        final List<String> discoveredPrinters = new ArrayList<>();
+        final ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, discoveredPrinters);
+        lvDiscovered.setAdapter(adapter);
+
+        lvDiscovered.setOnItemClickListener((parent, v, position, id) -> {
+            String selected = discoveredPrinters.get(position);
+            if (selected.contains(":")) {
+                String ip = selected.substring(0, selected.indexOf(':')).trim();
+                etPrinterIp.setText(ip);
+            }
+        });
+
+        btnScanLan.setOnClickListener(v -> {
+            discoveredPrinters.clear();
+            adapter.notifyDataSetChanged();
+            pbScanProgress.setVisibility(View.VISIBLE);
+            tvScanStatus.setText("Scanning subnet for port 9100...");
+            btnScanLan.setEnabled(false);
+
+            if (lanScanner == null) {
+                lanScanner = new SunmiLanScanner();
+            }
+
+            lanScanner.startScan(new SunmiLanScanner.ScanCallback() {
+                @Override
+                public void onPrinterDiscovered(String ip, int port, String modelDescription) {
+                    discoveredPrinters.add(ip + ":" + port + " (" + modelDescription + ")");
+                    adapter.notifyDataSetChanged();
+                }
+
+                @Override
+                public void onScanProgress(int progress, int total, String currentIp) {
+                    tvScanStatus.setText(progress + "/" + total + " (" + currentIp + ")");
+                }
+
+                @Override
+                public void onScanCompleted(List<String> discoveredIps) {
+                    pbScanProgress.setVisibility(View.GONE);
+                    btnScanLan.setEnabled(true);
+                    if (discoveredIps.isEmpty()) {
+                        tvScanStatus.setText("Scan done. No open port 9100 found. Enter IP manually.");
+                    } else {
+                        tvScanStatus.setText("Found " + discoveredIps.size() + " network printer(s)!");
+                        etPrinterIp.setText(discoveredIps.get(0));
+                    }
+                }
+            });
+        });
+
+        view.findViewById(R.id.btnConnectLanSubmit).setOnClickListener(v -> {
+            String ip = etPrinterIp.getText().toString().trim();
+            int port = 9100;
+            try {
+                port = Integer.parseInt(etPrinterPort.getText().toString().trim());
+            } catch (Exception ignored) {}
+
+            if (ip.isEmpty()) {
+                Toast.makeText(this, "Please enter a valid IP address", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            if (lanScanner != null && lanScanner.isScanning()) {
+                lanScanner.cancelScan();
+            }
+
+            dialog.dismiss();
+
+            addLog(new DrawerEvent(
+                    DrawerEvent.Type.STATUS_QUERY,
+                    "Connecting Wi-Fi / Ethernet LAN",
+                    "Opening TCP RAW socket to " + ip + ":" + port,
+                    "Target: " + ip + ":" + port,
+                    false
+            ));
+            Toast.makeText(this, "Connecting to " + ip + ":" + port + "...", Toast.LENGTH_SHORT).show();
+            bluetoothManager.connectNetwork(ip, port);
+        });
+
+        view.findViewById(R.id.btnCancelLan).setOnClickListener(v -> {
+            if (lanScanner != null && lanScanner.isScanning()) {
+                lanScanner.cancelScan();
+            }
+            dialog.dismiss();
+        });
+
+        dialog.setOnDismissListener(d -> {
+            if (lanScanner != null && lanScanner.isScanning()) {
+                lanScanner.cancelScan();
+            }
+        });
+
+        dialog.show();
+    }
+
     private void kickCashDrawerViaBluetooth() {
         if (bluetoothManager.isConnected()) {
             // Direct hardware kick command sent to NT311
@@ -379,39 +504,54 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
     // ==========================================
 
     @Override
-    public void onConnected(String deviceName, String macAddress) {
-        tvBtStatusPill.setText("● BT: " + deviceName);
+    public void onConnected(String deviceName, String targetDesc) {
+        boolean isNet = (bluetoothManager.getConnectionType() == SunmiBluetoothManager.ConnectionType.NETWORK);
+        String label = isNet ? ("● LAN: " + targetDesc) : ("● BT: " + deviceName);
+        tvBtStatusPill.setText(label);
         tvBtStatusPill.setTextColor(Color.parseColor("#34D399"));
         tvBtStatusPill.setBackgroundColor(Color.parseColor("#064E3B"));
 
-        tvDeviceHeaderLabel.setText("NT311 BLUETOOTH: " + deviceName);
-        btnConnectBt.setText("Disconnect Bluetooth");
-        btnConnectBt.setBackgroundColor(Color.parseColor("#991B1B"));
+        tvDeviceHeaderLabel.setText(isNet ? ("NT311 WI-FI/LAN: " + targetDesc) : ("NT311 BLUETOOTH: " + deviceName));
+
+        if (isNet) {
+            btnConnectLan.setText("Disconnect LAN");
+            btnConnectLan.setBackgroundColor(Color.parseColor("#991B1B"));
+            btnConnectBt.setEnabled(false);
+        } else {
+            btnConnectBt.setText("Disconnect BT");
+            btnConnectBt.setBackgroundColor(Color.parseColor("#991B1B"));
+            btnConnectLan.setEnabled(false);
+        }
 
         addLog(new DrawerEvent(
                 DrawerEvent.Type.BT_CONNECTED,
-                "Bluetooth Connected to NT311",
-                "Paired & connected RFCOMM SPP channel to " + deviceName,
-                "MAC: " + macAddress + " | ASB & Polling Active",
+                isNet ? "Wi-Fi / LAN Connected to NT311" : "Bluetooth Connected to NT311",
+                isNet ? ("TCP RAW Socket (Port 9100) to " + targetDesc) : ("Paired & connected RFCOMM SPP channel to " + deviceName),
+                "Target: " + targetDesc + " | ASB & Adaptive Polling Active",
                 false
         ));
-        Toast.makeText(this, "Connected to " + deviceName, Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, (isNet ? "LAN Connected to " : "BT Connected to ") + targetDesc, Toast.LENGTH_SHORT).show();
     }
 
     @Override
     public void onDisconnected() {
-        tvBtStatusPill.setText("● BT: OFF");
+        tvBtStatusPill.setText("● OFFLINE");
         tvBtStatusPill.setTextColor(Color.parseColor("#94A3B8"));
         tvBtStatusPill.setBackgroundColor(Color.parseColor("#1E293B"));
 
         tvDeviceHeaderLabel.setText("NT311 RJ12 CASHDRAWER");
-        btnConnectBt.setText("📶 Connect NT311 (Bluetooth)");
+        btnConnectBt.setText("📶 Bluetooth");
         btnConnectBt.setBackgroundColor(Color.parseColor("#0284C7"));
+        btnConnectBt.setEnabled(true);
+
+        btnConnectLan.setText("🌐 Wi-Fi / LAN");
+        btnConnectLan.setBackgroundColor(Color.parseColor("#0D9488"));
+        btnConnectLan.setEnabled(true);
 
         addLog(new DrawerEvent(
                 DrawerEvent.Type.BT_DISCONNECTED,
-                "Bluetooth Disconnected",
-                "RFCOMM SPP channel closed.",
+                "Printer Disconnected",
+                "Communication channel closed.",
                 "",
                 false
         ));
@@ -787,6 +927,9 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (lanScanner != null && lanScanner.isScanning()) {
+            lanScanner.cancelScan();
+        }
         if (bluetoothManager != null) {
             bluetoothManager.disconnect();
         }

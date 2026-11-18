@@ -56,8 +56,21 @@ public class SunmiBluetoothManager implements SunmiCashDrawerApi {
         void onSensorDiagnosticWarning(String warning);
     }
 
+    public enum ConnectionType {
+        NONE("Offline"),
+        BLUETOOTH("Bluetooth SPP"),
+        NETWORK("Wi-Fi / Ethernet LAN");
+
+        public final String label;
+        ConnectionType(String label) { this.label = label; }
+    }
+
     private final BluetoothAdapter bluetoothAdapter;
     private BluetoothSocket socket;
+    private java.net.Socket netSocket;
+    private ConnectionType connectionType = ConnectionType.NONE;
+    private String connectedHost = "";
+    private int connectedPort = 9100;
     private InputStream inputStream;
     private OutputStream outputStream;
     private Thread workerThread;
@@ -122,7 +135,25 @@ public class SunmiBluetoothManager implements SunmiCashDrawerApi {
     }
 
     public boolean isConnected() {
-        return isConnected && socket != null && socket.isConnected();
+        if (!isConnected) return false;
+        if (connectionType == ConnectionType.BLUETOOTH) {
+            return socket != null && socket.isConnected();
+        } else if (connectionType == ConnectionType.NETWORK) {
+            return netSocket != null && netSocket.isConnected() && !netSocket.isClosed();
+        }
+        return false;
+    }
+
+    public ConnectionType getConnectionType() {
+        return connectionType;
+    }
+
+    public String getConnectedHost() {
+        return connectedHost;
+    }
+
+    public int getConnectedPort() {
+        return connectedPort;
     }
 
     public String getConnectedDeviceName() {
@@ -203,6 +234,7 @@ public class SunmiBluetoothManager implements SunmiCashDrawerApi {
                 inputStream = socket.getInputStream();
                 outputStream = socket.getOutputStream();
                 isConnected = true;
+                connectionType = ConnectionType.BLUETOOTH;
 
                 final String name = device.getName() != null ? device.getName() : "Sunmi NT311";
                 final String addr = device.getAddress();
@@ -234,6 +266,57 @@ public class SunmiBluetoothManager implements SunmiCashDrawerApi {
         }).start();
     }
 
+    /**
+     * Connect to Sunmi Cloud Printer via Wi-Fi or Ethernet LAN.
+     * Uses RAW ESC/POS TCP Socket on Port 9100.
+     */
+    public void connectNetwork(final String host, final int port) {
+        if (host == null || host.trim().isEmpty()) return;
+
+        disconnect();
+
+        new Thread(() -> {
+            try {
+                netSocket = new java.net.Socket();
+                netSocket.connect(new java.net.InetSocketAddress(host.trim(), port), 6000);
+                netSocket.setTcpNoDelay(true); // Disable Nagle's algorithm for sub-ms real-time status packets
+                netSocket.setKeepAlive(true);
+
+                inputStream = netSocket.getInputStream();
+                outputStream = netSocket.getOutputStream();
+                isConnected = true;
+                connectionType = ConnectionType.NETWORK;
+                connectedHost = host.trim();
+                connectedPort = port;
+                connectedDeviceName = "NT311 (" + host.trim() + ":" + port + ")";
+
+                final String targetDesc = host.trim() + ":" + port;
+                mainHandler.post(() -> {
+                    if (callback != null) {
+                        callback.onConnected(connectedDeviceName, targetDesc);
+                    }
+                });
+
+                // Enable Full Automatic Status Back (ASB) on printer
+                enableAutoStatusBack();
+
+                // Start stream reader thread
+                startListeningThread();
+
+                // Start adaptive real-time status polling
+                startStatusPolling();
+
+            } catch (final Exception e) {
+                disconnect();
+                mainHandler.post(() -> {
+                    if (callback != null) {
+                        callback.onConnectionFailed("TCP Connection failed to " + host + ":" + port + " (" + e.getMessage() + ")");
+                    }
+                });
+            }
+        }).start();
+    }
+
     public synchronized void disconnect() {
         isConnected = false;
         stopStatusPolling();
@@ -255,9 +338,15 @@ public class SunmiBluetoothManager implements SunmiCashDrawerApi {
             if (socket != null) socket.close();
         } catch (Exception ignored) {}
 
+        try {
+            if (netSocket != null) netSocket.close();
+        } catch (Exception ignored) {}
+
         inputStream = null;
         outputStream = null;
         socket = null;
+        netSocket = null;
+        connectionType = ConnectionType.NONE;
 
         synchronized (streamBuffer) {
             streamBuffer.reset();

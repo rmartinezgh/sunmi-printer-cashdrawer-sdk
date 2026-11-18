@@ -5,7 +5,7 @@
 * [Sunmi Cash Drawer Control API](https://docs.sunmi.com/en-US/cdixeghjk491/xfxdeghjk524)
 * Official Sunmi SDK: `com.sunmi.externalprinterlibrary2` (`EscUtil`, `TransTask`, `StatusTask`)
 
-This repository provides an enterprise-grade, production-ready solution for **Cash Drawer control, real-time status detection, audit logging, and reporting** connecting the **Sunmi cPad (Android 13 POS)** to the **Sunmi NT311 Cloud Printer** via **Bluetooth (SPP)** and **Sunmi Cloud OpenAPI**.
+This repository provides an enterprise-grade, production-ready solution for **Cash Drawer control, real-time status detection, audit logging, and reporting** connecting the **Sunmi cPad (Android 13 POS)** to the **Sunmi NT311 Cloud Printer** via **Bluetooth (SPP)**, **Wi-Fi / Ethernet LAN (RAW TCP Socket port 9100)**, and **Sunmi Cloud OpenAPI**.
 
 ---
 
@@ -13,7 +13,7 @@ This repository provides an enterprise-grade, production-ready solution for **Ca
 1. [Key Features](#key-features)
 2. [Hardware Architecture & RJ12 Wiring](#hardware-architecture--rj12-wiring)
 3. [Microswitch Polarity: Normally Closed (N.C.) vs Normally Open (N.O.)](#microswitch-polarity-normally-closed-nc-vs-normally-open-no)
-4. [Bluetooth Protocol (cPad to NT311)](#bluetooth-protocol-cpad-to-nt311)
+4. [Connection Modes (Bluetooth & Wi-Fi/LAN)](#connection-modes-bluetooth--wifilan)
 5. [Official ESC/POS Command Bytecodes](#official-escpos-command-bytecodes)
 6. [Official Sunmi Cash Drawer API Implementation](#official-sunmi-cash-drawer-api-implementation)
 7. [Cash Drawer Logs & Audit Report Feature](#cash-drawer-logs--audit-report-feature)
@@ -25,11 +25,14 @@ This repository provides an enterprise-grade, production-ready solution for **Ca
 
 ## Key Features
 
-1. **Dual Connection Modes**:
-   * **Bluetooth SPP (Wireless)**: Direct RFCOMM connection from Sunmi cPad to Sunmi NT311 for instant offline transaction kicking, continuous background status polling (`10 04 01`), and automatic status back (ASB `1D 61 01`).
+1. **Triple Connection Modes**:
+   * **Wi-Fi / Ethernet LAN (Port 9100 RAW ESC/POS)**: High-speed TCP socket interface connecting directly across the local LAN/WLAN. Includes built-in multi-threaded Subnet Scanner with discovery for Sunmi default IPs (`192.168.103.134`, etc.) and sub-millisecond status polling (`setTcpNoDelay`).
+   * **Bluetooth SPP (Wireless RFCOMM)**: Direct RFCOMM connection from Sunmi cPad to Sunmi NT311 for instant offline transaction kicking, continuous background status polling (`10 04 01`), and automatic status back (ASB `1D 61 01`).
    * **Sunmi Cloud OpenAPI**: Cloud-driven solenoid kicks, device status queries, and signed HMAC-SHA256 webhook event callbacks on port `8080`.
-2. **Correct Sensor Polarity Support (N.C. & N.O.)**:
+2. **Enhanced Real-Time Status Detection & Polarity Auto-Calibration**:
    * Pre-configured for commercial POS cash drawers using **Normally Closed (N.C.)** microswitches where **Bit 2 = 0 is OPEN** and **Bit 2 = 1 is CLOSED**.
+   * **Self-Learning Auto-Calibration**: When a solenoid kick is issued, the driver samples pre- and post-kick states. If Bit 2 transitioned from 0 -> 1 rather than 1 -> 0, polarity auto-adjusts immediately.
+   * **Multi-Packet Framing & Debouncing**: Stream ring-buffer handles 1-byte real-time packets (`0x12`, `0x16`), 4-byte ASB frames (`0x37 0x09`), and custom queries with a 60ms temporal debouncer preventing false triggers from mechanical switch bounce.
    * One-tap **Polarity Toggle Button** on the dashboard to switch dynamically between Inverted (N.C.) and Normal (N.O.) modes without restarting.
 3. **Official Sunmi `externalprinterlibrary2` Bytecode Alignment**:
    * Matches Sunmi's official `EscUtil.openCash()` (`1B 70 00 C8 C8`), `REAL_TIME` status (`10 04 01`), `customQueryStatus` (`1D 28 54 01 00 01`), and 4-byte `0x37 0x09` packet decoding.
@@ -104,12 +107,28 @@ Printers return the raw microswitch voltage level on Bit 2. For an N.C. drawer, 
 
 ---
 
-## Bluetooth Protocol (cPad to NT311)
+## Connection Modes (Bluetooth & Wi-Fi/LAN)
 
+### 1. Wi-Fi / Ethernet LAN Mode (Port 9100 RAW ESC/POS)
+* **Protocol**: Direct TCP Socket over local network to RAW ESC/POS port **9100**.
+* **IP Discovery & Subnet Scanner**:
+  * Tap **🌐 Wi-Fi / LAN** on the app toolbar to open the LAN connection modal.
+  * Enter target IP directly (e.g. `192.168.103.134`) or tap **🔍 Scan Network**.
+  * The multi-threaded scanner (`SunmiLanScanner.java`) checks all 254 subnet hosts and Sunmi factory default IPs concurrently across 28 threads.
+  * Tap any detected printer from the list to connect immediately.
+* **Network Socket Tuning**:
+  * `setTcpNoDelay(true)`: Disables Nagle's algorithm to eliminate latency on 3-byte real-time polling packets (`10 04 01`).
+  * `setKeepAlive(true)`: Sustains socket health during extended POS counter idle periods.
+* **Obtaining Sunmi Printer IP (Setup Guide v1.3)**:
+  * **Self-Test Ticket**: Turn off printer. Press and hold the **FEED** button while powering on until the status light flashes, then release. The printer prints a self-test page listing its current IP address (DHCP or Static).
+  * **Factory Default Fallback**: If unconfigured, Sunmi cloud printers default to `192.168.103.134` or open AP mode `192.168.100.1`.
+  * **Web Configuration**: Access `http://<printer_ip>` in a browser or use the Sunmi Assistant mobile app to configure Wi-Fi SSID/password or set a static IP.
+
+### 2. Bluetooth SPP Mode (cPad to NT311)
 * **Protocol**: Bluetooth Serial Port Profile (SPP) via RFCOMM Channel 1.
 * **UUID**: `00001101-0000-1000-8000-00805F9B34FB`
 * **Android 13 Permissions**: Automatically requests `android.permission.BLUETOOTH_CONNECT` and `android.permission.BLUETOOTH_SCAN`.
-* **Background Polling**: Continuous daemon thread queries `10 04 01` every 1000ms while connected, providing instantaneous UI updates when the cashier pushes the drawer closed or turns the key.
+* **Adaptive Background Polling**: Continuous daemon thread queries `10 04 01` dynamically (every 250ms when drawer is open, 1000ms when idle) over the active socket (BT or LAN), providing instantaneous UI updates when the cashier closes the drawer or turns the key.
 
 ---
 
@@ -259,14 +278,16 @@ sunmi_printer_cashdrawer_sdk/
 │       │   ├── DrawerEvent.java                 # Audit log model
 │       │   ├── ICallback.java                   # Official Sunmi callback interface
 │       │   ├── LogAdapter.java                  # Custom ListView adapter
-│       │   ├── MainActivity.java                # UI Dashboard & Bluetooth controller
-│       │   ├── SunmiBluetoothManager.java       # Bluetooth SPP driver & status decoder
+│       │   ├── MainActivity.java                # UI Dashboard & dual connection controller
+│       │   ├── SunmiBluetoothManager.java       # Unified BT/LAN ESC/POS manager & status decoder
 │       │   ├── SunmiCashDrawerApi.java          # Official xfxdeghjk524 interface
 │       │   ├── SunmiCloudPrinter.java           # Java SDK & ESC/POS builder
+│       │   ├── SunmiLanScanner.java             # Multi-threaded port 9100 subnet scanner
 │       │   └── SunmiWebhookServer.java          # Embedded HTTP webhook server (port 8080)
 │       └── res/
 │           ├── layout/
 │           │   ├── activity_main.xml            # Dashboard & sliding drawer chassis
+│           │   ├── dialog_connect_lan.xml       # Wi-Fi / LAN IP entry & subnet scan dialog
 │           │   ├── dialog_drawer_report.xml     # Cash drawer audit report dialog
 │           │   ├── dialog_settings.xml          # Configuration modal
 │           │   └── item_drawer_log.xml          # Audit log list row

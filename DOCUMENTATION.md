@@ -1,6 +1,6 @@
 # Sunmi Cash Drawer & Cloud Printer SDK — Technical Reference Manual
 
-**Author**: Google DeepMind Agentic Engineering  
+**Author**: RAM  
 **Target Hardware**: Sunmi cPad (Android 13 POS Terminal), Sunmi NT311 Cloud Receipt Printer, Standard 24V RJ12 Cash Drawers  
 **Target Platform**: Android 13 (API Level 33, Tiramisu), Java 8+  
 **References**:
@@ -12,15 +12,16 @@
 
 ## 1. System Architecture
 
-The Cash Drawer integration system consists of two primary operational paths:
-1. **Local Bluetooth RFCOMM Path (Zero-Latency Offline Mode)**: The Sunmi cPad tablet communicates directly with the Sunmi NT311 printer via Bluetooth Serial Port Profile (SPP), allowing high-frequency real-time polling and sub-millisecond solenoid firing without dependency on cloud connectivity.
-2. **Sunmi Cloud OpenAPI Path (Remote Management Mode)**: The POS backend or cloud service interacts with Sunmi's Cloud Platform via REST APIs to dispatch remote print/kick tasks and receive asynchronous status callbacks over HMAC-SHA256 authenticated webhooks.
+The Cash Drawer integration system consists of three operational paths:
+1. **Local Wi-Fi / Ethernet LAN Path (High-Speed RAW TCP Port 9100 Mode)**: The Sunmi cPad tablet connects directly across the local LAN/WLAN to the Sunmi NT311 printer on RAW ESC/POS port `9100`. Enables zero-pairing high-throughput communication, automatic subnet discovery, and persistent background status telemetry with Nagle's algorithm disabled (`setTcpNoDelay(true)`).
+2. **Local Bluetooth RFCOMM Path (Zero-Latency Offline Mode)**: The Sunmi cPad tablet communicates directly with the Sunmi NT311 printer via Bluetooth Serial Port Profile (SPP, RFCOMM Channel 1), allowing high-frequency real-time polling and sub-millisecond solenoid firing without local network dependencies.
+3. **Sunmi Cloud OpenAPI Path (Remote Management Mode)**: The POS backend or cloud service interacts with Sunmi's Cloud Platform via REST APIs to dispatch remote print/kick tasks and receive asynchronous status callbacks over HMAC-SHA256 authenticated webhooks.
 
 ```mermaid
 flowchart TD
     subgraph POS_Station["POS Workstation (Front Counter)"]
-        CPad["Sunmi cPad (Android 13 Tablet)\n- Sunmi Cash Drawer Controller\n- Hardware Telemetry & Visualizer\n- Audit Report & Watchdog Engine"]
-        NT311["Sunmi NT311 Thermal Cloud Printer\n- ESC/POS Firmware Interpreter\n- RJ12 Solenoid Driver (Pin 2)\n- Microswitch Sensor Reader (Pin 3)"]
+        CPad["Sunmi cPad (Android 13 Tablet)\n- Sunmi Cash Drawer Controller\n- Hardware Telemetry & Visualizer\n- Audit Report & Watchdog Engine\n- Subnet Scanner (SunmiLanScanner)"]
+        NT311["Sunmi NT311 Thermal Cloud Printer\n- ESC/POS Firmware Interpreter\n- RAW TCP Server (Port 9100)\n- Bluetooth SPP (Channel 1)\n- RJ12 Solenoid Driver (Pin 2)\n- Microswitch Sensor Reader (Pin 3)"]
         Drawer["Cash Drawer\n- 24V Solenoid Release Latch\n- Pin 3 Microswitch (N.C. / N.O.)"]
     end
 
@@ -29,7 +30,8 @@ flowchart TD
         MerchantServer["Merchant POS Backend\n/ Webhook Receiver"]
     end
 
-    CPad -- "Bluetooth SPP (RFCOMM Channel 1)\nUUID: 00001101-...-00805F9B34FB\n[1B 70 00 C8 C8 / 10 04 01]" --> NT311
+    CPad -- "Wi-Fi / LAN TCP Socket:9100\n[1B 70 00 C8 C8 / 10 04 01]" --> NT311
+    CPad -- "Bluetooth SPP (RFCOMM Channel 1)\nUUID: 00001101-...-00805F9B34FB" --> NT311
     NT311 -- "RJ12 Cable\nPin 2 (24V Kick Pulse)\nPin 3 (Microswitch Sensing)" --> Drawer
     Drawer -- "Contact Closure State" --> NT311
     NT311 -- "Wi-Fi / Ethernet MQTT" --> SunmiCloud
@@ -152,7 +154,49 @@ In production Bluetooth RFCOMM environments, responses may arrive fragmented acr
 
 ---
 
-## 4. Official Sunmi Cash Drawer API Specification
+## 4. Wi-Fi / Ethernet LAN Connection & Subnet Scanner
+
+The SDK supports direct TCP socket connectivity to the Sunmi Cloud Printer over Ethernet or Wi-Fi local networks via standard RAW ESC/POS port **9100**.
+
+### 4.1 RAW Socket Communication
+- **Port**: `9100` (Direct ESC/POS stream)
+- **Bytecode Uniformity**: The printer firmware interprets the identical byte sequences over port 9100 as it does over Bluetooth SPP (`1B 70 00 C8 C8`, `10 04 01`, `1D 61 01`).
+- **Low-Latency Socket Options**:
+  ```java
+  Socket socket = new Socket();
+  socket.connect(new InetSocketAddress(host, port), 3000);
+  socket.setTcpNoDelay(true); // Disable Nagle's algorithm for sub-ms real-time status polling
+  socket.setKeepAlive(true);  // Keep long-lived connection active during counter idle
+  ```
+
+### 4.2 Multi-Threaded Subnet Scanner (`SunmiLanScanner.java`)
+To locate the Sunmi printer on local Wi-Fi without manual IP entry, the SDK provides a fast concurrent scanner:
+- **Concurrency**: 28 parallel worker threads using `Executors.newFixedThreadPool(28)`.
+- **Target Probing**:
+  1. Priority scan of Sunmi default IPs (`192.168.103.134`, `192.168.103.166`, `192.168.103.181`, `192.168.100.1`).
+  2. Full sweep across the local `/24` subnet (`x.x.x.1` through `x.x.x.254`).
+- **Discovery Strategy**: Lightweight TCP socket connection attempt to port 9100 with a 350ms timeout.
+- **Progress Reporting**: Real-time callback reports scanned host count and emits discovered devices dynamically to the UI ListView.
+
+### 4.3 Network Configuration & Printer IP Lookup (Setup Guide v1.3)
+Referencing the official *SUNMI Cloud Printer Setup User's Guide (v1.3)*:
+1. **Self-Test Ticket Method (Fastest)**:
+   - Turn off the printer power.
+   - Press and hold the **FEED** button while switching power back ON.
+   - Continue holding until the status LED flashes, then release.
+   - The printer prints a diagnostic ticket displaying:
+     - IP Address (e.g. `192.168.1.150` via DHCP)
+     - Subnet Mask & Gateway
+     - MAC Address & Bluetooth Name
+2. **Factory Fallback / AP Mode**:
+   - If unassigned, printer defaults to static IP `192.168.103.134`.
+   - In AP configuration mode, connect to SSID `Sunmi_Printer_XXXX` with default IP `192.168.100.1`.
+3. **Web Management Portal**:
+   - Navigate to `http://<printer_ip>` in any browser on the same network to configure static IP, Gateway, or Wi-Fi credentials.
+
+---
+
+## 5. Official Sunmi Cash Drawer API Specification
 
 Reference: [Sunmi Cash Drawer Control API](https://docs.sunmi.com/en-US/cdixeghjk491/xfxdeghjk524)
 
@@ -191,7 +235,7 @@ public interface ICallback {
 
 ---
 
-## 5. Cash Drawer Logs & Audit Reporting System
+## 6. Cash Drawer Logs & Audit Reporting System
 
 The audit reporting engine (`CashDrawerReportGenerator.java`) aggregates telemetry logs in real time to generate executive audit reports and thermal receipts.
 
@@ -258,9 +302,9 @@ RECENT AUDIT EVENTS:
 
 ---
 
-## 6. Cloud OpenAPI & HMAC-SHA256 Webhook Security
+## 7. Cloud OpenAPI & HMAC-SHA256 Webhook Security
 
-### 6.1 Authentication Header Calculation
+### 7.1 Authentication Header Calculation
 Every request to Sunmi OpenAPI (`https://openapi.sunmi.com`) must carry HMAC-SHA256 authorization:
 
 ```
@@ -268,16 +312,16 @@ Signature String = body + Sunmi-Appid + Sunmi-Timestamp + Sunmi-Nonce
 Sunmi-Sign       = HMAC-SHA256(Signature String, Sunmi-AppKey).toLowerCaseHex()
 ```
 
-### 6.2 Embedded Webhook Server (Port 8080)
+### 7.2 Embedded Webhook Server (Port 8080)
 The Android application includes an embedded HTTP server running on `http://127.0.0.1:8080/sunmi/callback`:
 * Validates `Sunmi-Sign` signatures before parsing payloads.
 * Emits live events (`CASHDRAWER_STATUS_CHANGED`, `CASHDRAWER_ALARM`) directly into the local audit trail.
 
 ---
 
-## 7. Android 13 Build, Packaging, and Deployment
+## 8. Android 13 Build, Packaging, and Deployment
 
-### 7.1 Key Configuration Files
+### 8.1 Key Configuration Files
 * **Manifest (`app/src/main/AndroidManifest.xml`)**:
   ```xml
   <uses-permission android:name="android.permission.BLUETOOTH" />
@@ -293,7 +337,7 @@ The Android application includes an embedded HTTP server running on `http://127.
   * **Storepass / Keypass**: `sunmi_prod_2026`
   * **Signature Schemes**: v1 (JAR signing), v2 (Full APK signature), v3 (Android 9+ signature)
 
-### 7.2 Automated Build Pipeline (`build_production_apk.bat`)
+### 8.2 Automated Build Pipeline (`build_production_apk.bat`)
 The automated build pipeline runs 6 sequential stages:
 1. `aapt2 compile`: Compiles Android resources into `build/compiled_res/res.zip`.
 2. `aapt2 link`: Packages resources with `android-33/android.jar` and generates `R.java`.
@@ -302,14 +346,14 @@ The automated build pipeline runs 6 sequential stages:
 5. `zipalign`: Aligns uncompressed data on 4-byte boundaries.
 6. `apksigner`: Signs the APK with `production.keystore` supporting v1, v2, and v3 schemes.
 
-### 7.3 Installation Command:
+### 8.3 Installation Command:
 ```bash
 adb install -r "c:\Users\Lenovo\Documents\antigravity_projects\sunmi_printer_cashdrawer_sdk\app\build\outputs\apk\release\app-release.apk"
 ```
 
 ---
 
-## 8. Troubleshooting & Frequently Asked Questions (FAQ)
+## 9. Troubleshooting & Frequently Asked Questions (FAQ)
 
 ### Q1: The cash drawer status is reversed (showing Open when closed and Closed when open).
 * **Cause**: Your cash drawer uses a Normally Closed (N.C.) microswitch, but the driver was reading it as Normally Open (N.O.).
@@ -327,7 +371,13 @@ adb install -r "c:\Users\Lenovo\Documents\antigravity_projects\sunmi_printer_cas
 3. Tap to pair. Default pairing PIN is usually `0000` or `1234`.
 4. Return to the Cash Drawer app and tap **`📶 Connect NT311 (Bluetooth)`**. Select the paired printer from the dialog list.
 
-### Q4: Can I test the watchdog and alarms without physical hardware?
+### Q4: How do I find and connect to the printer via Wi-Fi or Ethernet LAN?
+1. Make sure your Sunmi cPad and Sunmi printer are on the same Wi-Fi or wired network.
+2. In the app toolbar, tap **`🌐 Wi-Fi / LAN`**.
+3. Tap **`🔍 Scan Network`**. The built-in scanner scans the subnet and default Sunmi IPs concurrently.
+4. When your printer appears in the list, tap it to connect. Alternatively, enter the IP (found from printing a self-test ticket) and port `9100`, then tap **Connect**.
+
+### Q5: Can I test the watchdog and alarms without physical hardware?
 * **Yes!** The application includes a built-in hardware simulator:
   * Tap **`👐 Manual Open`** to simulate a physical drawer opening.
   * Watch the **Open Timer** count up in real time.
