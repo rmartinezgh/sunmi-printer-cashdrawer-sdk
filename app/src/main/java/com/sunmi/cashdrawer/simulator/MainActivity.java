@@ -14,6 +14,7 @@ import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.StrictMode;
 import android.os.Vibrator;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -65,6 +66,27 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Ensure permissive thread policy for network socket operations
+        try {
+            StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
+            StrictMode.setThreadPolicy(policy);
+        } catch (Exception ignored) {}
+
+        // Global crash guard to display graceful user notifications
+        final Thread.UncaughtExceptionHandler defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
+            try {
+                android.util.Log.e("SunmiCashDrawer", "Uncaught exception in " + thread.getName(), throwable);
+                runOnUiThread(() -> {
+                    Toast.makeText(MainActivity.this, "System Alert: " + throwable.getMessage(), Toast.LENGTH_LONG).show();
+                });
+            } catch (Exception ignored) {}
+            if (defaultHandler != null) {
+                defaultHandler.uncaughtException(thread, throwable);
+            }
+        });
+
         setContentView(R.layout.activity_main);
 
         vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
@@ -385,11 +407,20 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
         });
 
         view.findViewById(R.id.btnConnectLanSubmit).setOnClickListener(v -> {
-            String ip = etPrinterIp.getText().toString().trim();
+            String rawInput = etPrinterIp.getText().toString().trim();
+            String ip = rawInput;
             int port = 9100;
-            try {
-                port = Integer.parseInt(etPrinterPort.getText().toString().trim());
-            } catch (Exception ignored) {}
+            if (rawInput.contains(":")) {
+                String[] parts = rawInput.split(":");
+                ip = parts[0].trim();
+                try {
+                    port = Integer.parseInt(parts[1].trim());
+                } catch (Exception ignored) {}
+            } else {
+                try {
+                    port = Integer.parseInt(etPrinterPort.getText().toString().trim());
+                } catch (Exception ignored) {}
+            }
 
             if (ip.isEmpty()) {
                 Toast.makeText(this, "Please enter a valid IP address", Toast.LENGTH_SHORT).show();
@@ -400,24 +431,30 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
                 lanScanner.cancelScan();
             }
 
-            dialog.dismiss();
+            try {
+                dialog.dismiss();
+            } catch (Exception ignored) {}
 
+            final String targetIp = ip;
+            final int targetPort = port;
             addLog(new DrawerEvent(
                     DrawerEvent.Type.STATUS_QUERY,
                     "Connecting Wi-Fi / Ethernet LAN",
-                    "Opening TCP RAW socket to " + ip + ":" + port,
-                    "Target: " + ip + ":" + port,
+                    "Opening TCP RAW socket to " + targetIp + ":" + targetPort,
+                    "Target: " + targetIp + ":" + targetPort,
                     false
             ));
-            Toast.makeText(this, "Connecting to " + ip + ":" + port + "...", Toast.LENGTH_SHORT).show();
-            bluetoothManager.connectNetwork(ip, port);
+            Toast.makeText(this, "Connecting to " + targetIp + ":" + targetPort + "...", Toast.LENGTH_SHORT).show();
+            bluetoothManager.connectNetwork(targetIp, targetPort);
         });
 
         view.findViewById(R.id.btnCancelLan).setOnClickListener(v -> {
             if (lanScanner != null && lanScanner.isScanning()) {
                 lanScanner.cancelScan();
             }
-            dialog.dismiss();
+            try {
+                dialog.dismiss();
+            } catch (Exception ignored) {}
         });
 
         dialog.setOnDismissListener(d -> {
@@ -507,20 +544,36 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
     public void onConnected(String deviceName, String targetDesc) {
         boolean isNet = (bluetoothManager.getConnectionType() == SunmiBluetoothManager.ConnectionType.NETWORK);
         String label = isNet ? ("● LAN: " + targetDesc) : ("● BT: " + deviceName);
-        tvBtStatusPill.setText(label);
-        tvBtStatusPill.setTextColor(Color.parseColor("#34D399"));
-        tvBtStatusPill.setBackgroundColor(Color.parseColor("#064E3B"));
+        if (tvBtStatusPill != null) {
+            tvBtStatusPill.setText(label);
+            tvBtStatusPill.setTextColor(Color.parseColor("#34D399"));
+            tvBtStatusPill.setBackgroundColor(Color.parseColor("#064E3B"));
+        }
 
-        tvDeviceHeaderLabel.setText(isNet ? ("NT311 WI-FI/LAN: " + targetDesc) : ("NT311 BLUETOOTH: " + deviceName));
+        if (tvDeviceHeaderLabel != null) {
+            tvDeviceHeaderLabel.setText(isNet ? ("NT311 WI-FI/LAN: " + targetDesc) : ("NT311 BLUETOOTH: " + deviceName));
+        }
 
         if (isNet) {
-            btnConnectLan.setText("Disconnect LAN");
-            btnConnectLan.setBackgroundColor(Color.parseColor("#991B1B"));
-            btnConnectBt.setEnabled(false);
+            if (btnConnectLan != null) {
+                btnConnectLan.setText("Disconnect LAN");
+                try {
+                    btnConnectLan.setBackgroundColor(Color.parseColor("#991B1B"));
+                } catch (Exception ignored) {}
+            }
+            if (btnConnectBt != null) {
+                btnConnectBt.setEnabled(false);
+            }
         } else {
-            btnConnectBt.setText("Disconnect BT");
-            btnConnectBt.setBackgroundColor(Color.parseColor("#991B1B"));
-            btnConnectLan.setEnabled(false);
+            if (btnConnectBt != null) {
+                btnConnectBt.setText("Disconnect BT");
+                try {
+                    btnConnectBt.setBackgroundColor(Color.parseColor("#991B1B"));
+                } catch (Exception ignored) {}
+            }
+            if (btnConnectLan != null) {
+                btnConnectLan.setEnabled(false);
+            }
         }
 
         addLog(new DrawerEvent(
@@ -535,18 +588,30 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
 
     @Override
     public void onDisconnected() {
-        tvBtStatusPill.setText("● OFFLINE");
-        tvBtStatusPill.setTextColor(Color.parseColor("#94A3B8"));
-        tvBtStatusPill.setBackgroundColor(Color.parseColor("#1E293B"));
+        if (tvBtStatusPill != null) {
+            tvBtStatusPill.setText("● OFFLINE");
+            tvBtStatusPill.setTextColor(Color.parseColor("#94A3B8"));
+            tvBtStatusPill.setBackgroundColor(Color.parseColor("#1E293B"));
+        }
 
-        tvDeviceHeaderLabel.setText("NT311 RJ12 CASHDRAWER");
-        btnConnectBt.setText("📶 Bluetooth");
-        btnConnectBt.setBackgroundColor(Color.parseColor("#0284C7"));
-        btnConnectBt.setEnabled(true);
+        if (tvDeviceHeaderLabel != null) {
+            tvDeviceHeaderLabel.setText("NT311 RJ12 CASHDRAWER");
+        }
+        if (btnConnectBt != null) {
+            btnConnectBt.setText("📶 Bluetooth");
+            try {
+                btnConnectBt.setBackgroundColor(Color.parseColor("#0284C7"));
+            } catch (Exception ignored) {}
+            btnConnectBt.setEnabled(true);
+        }
 
-        btnConnectLan.setText("🌐 Wi-Fi / LAN");
-        btnConnectLan.setBackgroundColor(Color.parseColor("#0D9488"));
-        btnConnectLan.setEnabled(true);
+        if (btnConnectLan != null) {
+            btnConnectLan.setText("🌐 Wi-Fi / LAN");
+            try {
+                btnConnectLan.setBackgroundColor(Color.parseColor("#0D9488"));
+            } catch (Exception ignored) {}
+            btnConnectLan.setEnabled(true);
+        }
 
         addLog(new DrawerEvent(
                 DrawerEvent.Type.BT_DISCONNECTED,
@@ -562,12 +627,12 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
         onDisconnected();
         addLog(new DrawerEvent(
                 DrawerEvent.Type.ERROR,
-                "Bluetooth Connection Failed",
-                error != null ? error : "Failed to open RFCOMM socket",
-                "Please verify printer is powered ON and paired in Android Settings.",
+                "Connection Failed",
+                error != null ? error : "Failed to open socket",
+                "Please verify printer is powered ON and reachable over Bluetooth / Network.",
                 false
         ));
-        Toast.makeText(this, "BT Connect Failed: " + error, Toast.LENGTH_LONG).show();
+        Toast.makeText(this, "Connect Failed: " + error, Toast.LENGTH_LONG).show();
     }
 
     @Override

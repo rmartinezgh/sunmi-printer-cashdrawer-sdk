@@ -39,103 +39,114 @@ public class SunmiLanScanner {
         return isScanning.get();
     }
 
-    public void cancelScan() {
+    public synchronized void cancelScan() {
         isScanning.set(false);
-        if (executor != null && !executor.isShutdown()) {
-            executor.shutdownNow();
+        if (executor != null) {
+            try {
+                executor.shutdownNow();
+            } catch (Exception ignored) {}
             executor = null;
         }
     }
 
     public void startScan(final ScanCallback callback) {
-        if (isScanning.get()) {
-            cancelScan();
-        }
+        cancelScan();
         isScanning.set(true);
 
         final List<String> discoveredList = new ArrayList<>();
-        executor = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
+        final ExecutorService currentExecutor = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
+        synchronized (this) {
+            this.executor = currentExecutor;
+        }
 
         new Thread(() -> {
-            String localIp = getLocalIpAddress();
-            String subnetPrefix;
+            try {
+                String localIp = getLocalIpAddress();
+                String subnetPrefix;
 
-            if (localIp != null && localIp.contains(".")) {
-                int lastDot = localIp.lastIndexOf('.');
-                subnetPrefix = localIp.substring(0, lastDot + 1);
-            } else {
-                // Fallback default from Sunmi setup guide
-                subnetPrefix = "192.168.103.";
-            }
-
-            final List<String> targetsToProbe = new ArrayList<>();
-
-            // Priority 1: Common Sunmi default IPs from setup guide
-            String[] knownSunmiIps = new String[]{
-                    subnetPrefix + "134",
-                    subnetPrefix + "166",
-                    subnetPrefix + "181",
-                    subnetPrefix + "221",
-                    subnetPrefix + "100",
-                    "192.168.103.134",
-                    "192.168.103.166",
-                    "192.168.103.181"
-            };
-            for (String known : knownSunmiIps) {
-                if (!targetsToProbe.contains(known)) {
-                    targetsToProbe.add(known);
+                if (localIp != null && localIp.contains(".")) {
+                    int lastDot = localIp.lastIndexOf('.');
+                    subnetPrefix = localIp.substring(0, lastDot + 1);
+                } else {
+                    // Fallback default from Sunmi setup guide
+                    subnetPrefix = "192.168.103.";
                 }
-            }
 
-            // Priority 2: Full local subnet 1..254
-            for (int i = 1; i <= 254; i++) {
-                String ip = subnetPrefix + i;
-                if (!targetsToProbe.contains(ip)) {
-                    targetsToProbe.add(ip);
+                final List<String> targetsToProbe = new ArrayList<>();
+
+                // Priority 1: Common Sunmi default IPs from setup guide
+                String[] knownSunmiIps = new String[]{
+                        subnetPrefix + "134",
+                        subnetPrefix + "166",
+                        subnetPrefix + "181",
+                        subnetPrefix + "221",
+                        subnetPrefix + "100",
+                        "192.168.103.134",
+                        "192.168.103.166",
+                        "192.168.103.181"
+                };
+                for (String known : knownSunmiIps) {
+                    if (!targetsToProbe.contains(known)) {
+                        targetsToProbe.add(known);
+                    }
                 }
-            }
 
-            final int totalTargets = targetsToProbe.size();
-            final AtomicInteger completedCount = new AtomicInteger(0);
+                // Priority 2: Full local subnet 1..254
+                for (int i = 1; i <= 254; i++) {
+                    String ip = subnetPrefix + i;
+                    if (!targetsToProbe.contains(ip)) {
+                        targetsToProbe.add(ip);
+                    }
+                }
 
-            for (final String targetIp : targetsToProbe) {
-                if (!isScanning.get()) break;
+                final int totalTargets = targetsToProbe.size();
+                final AtomicInteger completedCount = new AtomicInteger(0);
 
-                executor.execute(() -> {
-                    if (!isScanning.get()) return;
+                for (final String targetIp : targetsToProbe) {
+                    if (!isScanning.get() || currentExecutor.isShutdown()) break;
 
-                    boolean isOpen = probePort(targetIp, DEFAULT_ESC_POS_PORT, PROBE_TIMEOUT_MS);
-                    if (isOpen) {
-                        synchronized (discoveredList) {
-                            if (!discoveredList.contains(targetIp)) {
-                                discoveredList.add(targetIp);
+                    try {
+                        currentExecutor.execute(() -> {
+                            if (!isScanning.get()) return;
+
+                            boolean isOpen = probePort(targetIp, DEFAULT_ESC_POS_PORT, PROBE_TIMEOUT_MS);
+                            if (isOpen) {
+                                synchronized (discoveredList) {
+                                    if (!discoveredList.contains(targetIp)) {
+                                        discoveredList.add(targetIp);
+                                    }
+                                }
+                                mainHandler.post(() -> {
+                                    if (callback != null && isScanning.get()) {
+                                        callback.onPrinterDiscovered(targetIp, DEFAULT_ESC_POS_PORT, "Sunmi Cloud Printer (" + targetIp + ")");
+                                    }
+                                });
                             }
-                        }
-                        mainHandler.post(() -> {
-                            if (callback != null && isScanning.get()) {
-                                callback.onPrinterDiscovered(targetIp, DEFAULT_ESC_POS_PORT, "Sunmi Cloud Printer (" + targetIp + ")");
+
+                            int done = completedCount.incrementAndGet();
+                            if (done % 5 == 0 || done == totalTargets) {
+                                mainHandler.post(() -> {
+                                    if (callback != null && isScanning.get()) {
+                                        callback.onScanProgress(done, totalTargets, targetIp);
+                                    }
+                                });
+                            }
+
+                            if (done >= totalTargets) {
+                                isScanning.set(false);
+                                mainHandler.post(() -> {
+                                    if (callback != null) {
+                                        callback.onScanCompleted(new ArrayList<>(discoveredList));
+                                    }
+                                });
                             }
                         });
+                    } catch (Exception ignored) {
+                        break;
                     }
-
-                    int done = completedCount.incrementAndGet();
-                    if (done % 5 == 0 || done == totalTargets) {
-                        mainHandler.post(() -> {
-                            if (callback != null && isScanning.get()) {
-                                callback.onScanProgress(done, totalTargets, targetIp);
-                            }
-                        });
-                    }
-
-                    if (done >= totalTargets) {
-                        isScanning.set(false);
-                        mainHandler.post(() -> {
-                            if (callback != null) {
-                                callback.onScanCompleted(new ArrayList<>(discoveredList));
-                            }
-                        });
-                    }
-                });
+                }
+            } catch (Throwable t) {
+                isScanning.set(false);
             }
         }).start();
     }

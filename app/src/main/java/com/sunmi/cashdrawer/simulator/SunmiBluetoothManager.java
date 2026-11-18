@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
 import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.SystemClock;
 import java.io.ByteArrayOutputStream;
@@ -16,6 +17,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Enhanced Sunmi Bluetooth Manager for connecting Sunmi cPad to Sunmi NT311 Printer.
@@ -100,10 +103,12 @@ public class SunmiBluetoothManager implements SunmiCashDrawerApi {
     private final ByteArrayOutputStream streamBuffer = new ByteArrayOutputStream();
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
     private BluetoothCallback callback;
 
     private boolean isPolling = false;
-    private final Handler pollHandler = new Handler(Looper.getMainLooper());
+    private HandlerThread pollThread;
+    private Handler pollHandler;
     private final Runnable pollRunnable = new Runnable() {
         @Override
         public void run() {
@@ -113,13 +118,18 @@ public class SunmiBluetoothManager implements SunmiCashDrawerApi {
 
                 long now = System.currentTimeMillis();
                 long nextDelay = (now < burstUntilTimeMs) ? BURST_POLL_INTERVAL_MS : NORMAL_POLL_INTERVAL_MS;
-                pollHandler.postDelayed(this, nextDelay);
+                if (pollHandler != null) {
+                    pollHandler.postDelayed(this, nextDelay);
+                }
             }
         }
     };
 
     public SunmiBluetoothManager() {
         this.bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+        this.pollThread = new HandlerThread("SunmiPollThread");
+        this.pollThread.start();
+        this.pollHandler = new Handler(pollThread.getLooper());
     }
 
     public void setCallback(BluetoothCallback callback) {
@@ -277,8 +287,21 @@ public class SunmiBluetoothManager implements SunmiCashDrawerApi {
 
         new Thread(() -> {
             try {
+                String cleanHost = host.trim();
+                int cleanPort = port;
+                if (cleanHost.contains(":")) {
+                    String[] parts = cleanHost.split(":");
+                    cleanHost = parts[0].trim();
+                    try {
+                        cleanPort = Integer.parseInt(parts[1].trim());
+                    } catch (Exception ignored) {}
+                }
+                if (cleanPort <= 0 || cleanPort > 65535) {
+                    cleanPort = 9100;
+                }
+
                 netSocket = new java.net.Socket();
-                netSocket.connect(new java.net.InetSocketAddress(host.trim(), port), 6000);
+                netSocket.connect(new java.net.InetSocketAddress(cleanHost, cleanPort), 6000);
                 netSocket.setTcpNoDelay(true); // Disable Nagle's algorithm for sub-ms real-time status packets
                 netSocket.setKeepAlive(true);
 
@@ -286,11 +309,11 @@ public class SunmiBluetoothManager implements SunmiCashDrawerApi {
                 outputStream = netSocket.getOutputStream();
                 isConnected = true;
                 connectionType = ConnectionType.NETWORK;
-                connectedHost = host.trim();
-                connectedPort = port;
-                connectedDeviceName = "NT311 (" + host.trim() + ":" + port + ")";
+                connectedHost = cleanHost;
+                connectedPort = cleanPort;
+                connectedDeviceName = "NT311 (" + cleanHost + ":" + cleanPort + ")";
 
-                final String targetDesc = host.trim() + ":" + port;
+                final String targetDesc = cleanHost + ":" + cleanPort;
                 mainHandler.post(() -> {
                     if (callback != null) {
                         callback.onConnected(connectedDeviceName, targetDesc);
@@ -306,11 +329,12 @@ public class SunmiBluetoothManager implements SunmiCashDrawerApi {
                 // Start adaptive real-time status polling
                 startStatusPolling();
 
-            } catch (final Exception e) {
+            } catch (final Throwable e) {
                 disconnect();
+                final String targetDesc = host.trim() + ":" + port;
                 mainHandler.post(() -> {
                     if (callback != null) {
-                        callback.onConnectionFailed("TCP Connection failed to " + host + ":" + port + " (" + e.getMessage() + ")");
+                        callback.onConnectionFailed("TCP Connection failed to " + targetDesc + " (" + e.getMessage() + ")");
                     }
                 });
             }
@@ -322,31 +346,29 @@ public class SunmiBluetoothManager implements SunmiCashDrawerApi {
         stopStatusPolling();
 
         if (workerThread != null) {
-            workerThread.interrupt();
+            try {
+                workerThread.interrupt();
+            } catch (Exception ignored) {}
             workerThread = null;
         }
 
-        try {
-            if (inputStream != null) inputStream.close();
-        } catch (Exception ignored) {}
-
-        try {
-            if (outputStream != null) outputStream.close();
-        } catch (Exception ignored) {}
-
-        try {
-            if (socket != null) socket.close();
-        } catch (Exception ignored) {}
-
-        try {
-            if (netSocket != null) netSocket.close();
-        } catch (Exception ignored) {}
+        final InputStream is = inputStream;
+        final OutputStream os = outputStream;
+        final BluetoothSocket bs = socket;
+        final java.net.Socket ns = netSocket;
 
         inputStream = null;
         outputStream = null;
         socket = null;
         netSocket = null;
         connectionType = ConnectionType.NONE;
+
+        ioExecutor.execute(() -> {
+            try { if (is != null) is.close(); } catch (Exception ignored) {}
+            try { if (os != null) os.close(); } catch (Exception ignored) {}
+            try { if (bs != null) bs.close(); } catch (Exception ignored) {}
+            try { if (ns != null) ns.close(); } catch (Exception ignored) {}
+        });
 
         synchronized (streamBuffer) {
             streamBuffer.reset();
@@ -553,13 +575,17 @@ public class SunmiBluetoothManager implements SunmiCashDrawerApi {
 
     public void startStatusPolling() {
         isPolling = true;
-        pollHandler.removeCallbacks(pollRunnable);
-        pollHandler.postDelayed(pollRunnable, 200);
+        if (pollHandler != null) {
+            pollHandler.removeCallbacks(pollRunnable);
+            pollHandler.postDelayed(pollRunnable, 200);
+        }
     }
 
     public void stopStatusPolling() {
         isPolling = false;
-        pollHandler.removeCallbacks(pollRunnable);
+        if (pollHandler != null) {
+            pollHandler.removeCallbacks(pollRunnable);
+        }
     }
 
     /**
@@ -567,8 +593,10 @@ public class SunmiBluetoothManager implements SunmiCashDrawerApi {
      */
     public void triggerBurstTracking(int durationMs) {
         burstUntilTimeMs = System.currentTimeMillis() + durationMs;
-        pollHandler.removeCallbacks(pollRunnable);
-        pollHandler.post(pollRunnable);
+        if (pollHandler != null) {
+            pollHandler.removeCallbacks(pollRunnable);
+            pollHandler.post(pollRunnable);
+        }
     }
 
     /**
@@ -587,29 +615,36 @@ public class SunmiBluetoothManager implements SunmiCashDrawerApi {
     // ESC/POS Command Dispatching
     // ==========================================
 
-    public synchronized boolean sendBytes(final byte[] data, final String description) {
-        if (!isConnected() || outputStream == null) {
+    public boolean sendBytes(final byte[] data, final String description) {
+        if (!isConnected || data == null) {
             return false;
         }
-        try {
-            outputStream.write(data);
-            outputStream.flush();
+        final byte[] dataCopy = data.clone();
+        ioExecutor.execute(() -> {
+            synchronized (this) {
+                if (!isConnected || outputStream == null) return;
+                try {
+                    outputStream.write(dataCopy);
+                    outputStream.flush();
 
-            final StringBuilder hex = new StringBuilder();
-            for (byte b : data) {
-                hex.append(String.format("%02x", b));
-            }
+                    final StringBuilder hex = new StringBuilder();
+                    for (byte b : dataCopy) {
+                        hex.append(String.format("%02x", b));
+                    }
 
-            mainHandler.post(() -> {
-                if (callback != null) {
-                    callback.onCommandSent(hex.toString(), description);
+                    mainHandler.post(() -> {
+                        if (callback != null) {
+                            callback.onCommandSent(hex.toString(), description);
+                        }
+                    });
+                } catch (IOException e) {
+                    disconnect();
+                } catch (Throwable t) {
+                    disconnect();
                 }
-            });
-            return true;
-        } catch (IOException e) {
-            disconnect();
-            return false;
-        }
+            }
+        });
+        return true;
     }
 
     /**
