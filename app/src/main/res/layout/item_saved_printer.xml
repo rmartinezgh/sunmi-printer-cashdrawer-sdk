@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:padding="8dp"
+    android:background="@drawable/bg_terminal"
+    android:layout_marginBottom="4dp">
+
+    <!-- Model Badge -->
+    <TextView
+        android:id="@+id/tvItemModel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="NT311"
+        android:textColor="@color/sunmi_orange"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:background="#1E293B"
+        android:paddingLeft="6dp"
+        android:paddingRight="6dp"
+        android:paddingTop="2dp"
+        android:paddingBottom="2dp"
+        android:layout_marginRight="8dp" />
+
+    <!-- Info column: SN & IP -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tvItemIp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="192.168.103.134:9100"
+            android:textColor="#34D399"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:fontFamily="monospace" />
+
+        <TextView
+            android:id="@+id/tvItemSnAndType"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="SN: N402D05T00007 · Ethernet"
+            android:textColor="@color/text_muted"
+            android:textSize="10sp"
+            android:fontFamily="monospace" />
+    </LinearLayout>
+
+    <!-- Connect Action Button -->
+    <Button
+        android:id="@+id/btnItemConnect"
+        android:layout_width="wrap_content"
+        android:layout_height="32dp"
+        android:text="Connect"
+        android:textColor="#FFFFFF"
+        android:textSize="10sp"
+        android:textStyle="bold"
+        android:backgroundTint="#0D9488"
+        android:paddingLeft="8dp"
+        android:paddingRight="8dp"
+        android:layout_marginRight="4dp" />
+
+    <!-- Delete Item Button -->
+    <Button
+        android:id="@+id/btnItemDelete"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:text="✕"
+        android:textColor="#EF4444"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:backgroundTint="#1E293B"
+        android:padding="0dp" />
+
+</LinearLayout>

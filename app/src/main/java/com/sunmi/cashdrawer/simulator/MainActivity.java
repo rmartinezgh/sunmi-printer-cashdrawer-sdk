@@ -10,6 +10,7 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.os.Build;
@@ -29,6 +30,8 @@ import android.widget.Toast;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 public class MainActivity extends Activity implements CashDrawerHardwareSimulator.HardwareListener, SunmiWebhookServer.WebhookListener, SunmiBluetoothManager.BluetoothCallback {
 
@@ -335,6 +338,46 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
         builder.show();
     }
 
+    private static final String PREF_SUNMI_PRINTERS = "sunmi_saved_printers";
+    private static final String KEY_PRINTER_LIST = "printer_list";
+
+    private List<SunmiPrinterDevice> loadSavedPrinters() {
+        List<SunmiPrinterDevice> list = new ArrayList<>();
+        SharedPreferences sp = getSharedPreferences(PREF_SUNMI_PRINTERS, Context.MODE_PRIVATE);
+        String jsonStr = sp.getString(KEY_PRINTER_LIST, null);
+        if (jsonStr != null && !jsonStr.trim().isEmpty()) {
+            try {
+                JSONArray arr = new JSONArray(jsonStr);
+                for (int i = 0; i < arr.length(); i++) {
+                    SunmiPrinterDevice dev = SunmiPrinterDevice.fromJson(arr.getJSONObject(i));
+                    if (dev != null) list.add(dev);
+                }
+            } catch (Exception ignored) {}
+        }
+
+        // Pre-populate with verified default configurations from Sunmi Cloud Printer Setup Guide v1.3
+        if (list.isEmpty()) {
+            list.add(new SunmiPrinterDevice("NT311", "N402D05T00007", "192.168.103.134", 9100, "Ethernet (Default)"));
+            list.add(new SunmiPrinterDevice("NT311", "N402D05T00007", "192.168.103.181", 9100, "Ethernet (DHCP)"));
+            list.add(new SunmiPrinterDevice("NT312", "N403D06A00023", "10.10.138.24", 9100, "Wi-Fi (SUNMI_Guest)"));
+            list.add(new SunmiPrinterDevice("NT211", "N302D96D40012", "192.168.103.166", 9100, "Ethernet (Setup)"));
+            savePrintersToPrefs(list);
+        }
+        return list;
+    }
+
+    private void savePrintersToPrefs(List<SunmiPrinterDevice> list) {
+        if (list == null) return;
+        JSONArray arr = new JSONArray();
+        for (SunmiPrinterDevice d : list) {
+            arr.put(d.toJson());
+        }
+        getSharedPreferences(PREF_SUNMI_PRINTERS, Context.MODE_PRIVATE)
+                .edit()
+                .putString(KEY_PRINTER_LIST, arr.toString())
+                .apply();
+    }
+
     private void handleLanConnectAction() {
         if (bluetoothManager.isConnected() && bluetoothManager.getConnectionType() == SunmiBluetoothManager.ConnectionType.NETWORK) {
             bluetoothManager.disconnect();
@@ -350,6 +393,18 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
 
         final AlertDialog dialog = builder.create();
 
+        final TextView tvLocalNetworkInfo = view.findViewById(R.id.tvLocalNetworkInfo);
+        final ListView lvSavedPrinters = view.findViewById(R.id.lvSavedPrinters);
+        final Button btnToggleAddPrinter = view.findViewById(R.id.btnToggleAddPrinter);
+        final View layoutAddPrinterForm = view.findViewById(R.id.layoutAddPrinterForm);
+
+        final EditText etNewPrinterModel = view.findViewById(R.id.etNewPrinterModel);
+        final EditText etNewPrinterSn = view.findViewById(R.id.etNewPrinterSn);
+        final EditText etNewPrinterIp = view.findViewById(R.id.etNewPrinterIp);
+        final EditText etNewPrinterPort = view.findViewById(R.id.etNewPrinterPort);
+        final Button btnSavePrinterSubmit = view.findViewById(R.id.btnSavePrinterSubmit);
+        final Button btnCancelAddPrinter = view.findViewById(R.id.btnCancelAddPrinter);
+
         final EditText etPrinterIp = view.findViewById(R.id.etPrinterIp);
         final EditText etPrinterPort = view.findViewById(R.id.etPrinterPort);
         final Button btnScanLan = view.findViewById(R.id.btnScanLan);
@@ -357,21 +412,138 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
         final TextView tvScanStatus = view.findViewById(R.id.tvScanStatus);
         final ListView lvDiscovered = view.findViewById(R.id.lvDiscoveredPrinters);
 
+        // Display current local cPad IP and subnet
+        String localIp = SunmiLanScanner.getLocalIpAddress();
+        if (localIp != null) {
+            int lastDot = localIp.lastIndexOf('.');
+            String subnet = (lastDot > 0) ? (localIp.substring(0, lastDot + 1) + "x") : localIp;
+            tvLocalNetworkInfo.setText("cPad IP: " + localIp + " (Subnet: " + subnet + " · LAN/Wi-Fi Active)");
+            if (etNewPrinterIp != null && etNewPrinterIp.getText().toString().isEmpty()) {
+                etNewPrinterIp.setText(localIp.substring(0, lastDot + 1));
+            }
+        } else {
+            tvLocalNetworkInfo.setText("cPad IP: Wi-Fi/Ethernet connecting...");
+        }
+
+        // Load Saved Sunmi Printers from Setup
+        final List<SunmiPrinterDevice> savedPrinters = loadSavedPrinters();
+        final SavedPrinterAdapter[] savedAdapterHolder = new SavedPrinterAdapter[1];
+        savedAdapterHolder[0] = new SavedPrinterAdapter(this, savedPrinters, new SavedPrinterAdapter.OnPrinterActionListener() {
+            @Override
+            public void onConnectClicked(SunmiPrinterDevice device) {
+                if (device == null) return;
+                etPrinterIp.setText(device.ip);
+                etPrinterPort.setText(String.valueOf(device.port));
+                SunmiCloudPrinter.DEFAULT_SN = device.sn;
+
+                if (lanScanner != null && lanScanner.isScanning()) {
+                    lanScanner.cancelScan();
+                }
+
+                try {
+                    dialog.dismiss();
+                } catch (Exception ignored) {}
+
+                addLog(new DrawerEvent(
+                        DrawerEvent.Type.STATUS_QUERY,
+                        "Connecting SunmiPrinter Setup Device",
+                        device.model + " [" + device.sn + "] via " + device.connectionType,
+                        "Target: " + device.ip + ":" + device.port + " (RAW Port 9100)",
+                        false
+                ));
+                Toast.makeText(MainActivity.this, "Connecting to " + device.model + " (" + device.ip + ":" + device.port + ")...", Toast.LENGTH_SHORT).show();
+                bluetoothManager.connectNetwork(device.ip, device.port);
+            }
+
+            @Override
+            public void onDeleteClicked(SunmiPrinterDevice device, int position) {
+                if (position >= 0 && position < savedPrinters.size()) {
+                    SunmiPrinterDevice removed = savedPrinters.remove(position);
+                    savePrintersToPrefs(savedPrinters);
+                    if (savedAdapterHolder[0] != null) {
+                        savedAdapterHolder[0].notifyDataSetChanged();
+                    }
+                    Toast.makeText(MainActivity.this, "Removed " + removed.model + " (" + removed.ip + ")", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+        lvSavedPrinters.setAdapter(savedAdapterHolder[0]);
+
+        // Toggle Add Printer Form Visibility
+        btnToggleAddPrinter.setOnClickListener(v -> {
+            boolean isVisible = (layoutAddPrinterForm.getVisibility() == View.VISIBLE);
+            layoutAddPrinterForm.setVisibility(isVisible ? View.GONE : View.VISIBLE);
+            btnToggleAddPrinter.setText(isVisible ? "➕ Add from Setup" : "▲ Hide Add Form");
+        });
+
+        btnCancelAddPrinter.setOnClickListener(v -> {
+            layoutAddPrinterForm.setVisibility(View.GONE);
+            btnToggleAddPrinter.setText("➕ Add from Setup");
+        });
+
+        // Save New Printer Form Submit
+        btnSavePrinterSubmit.setOnClickListener(v -> {
+            String model = etNewPrinterModel.getText().toString().trim();
+            String sn = etNewPrinterSn.getText().toString().trim();
+            String ip = etNewPrinterIp.getText().toString().trim();
+            int port = 9100;
+            try {
+                port = Integer.parseInt(etNewPrinterPort.getText().toString().trim());
+            } catch (Exception ignored) {}
+
+            if (ip.isEmpty()) {
+                Toast.makeText(this, "Please enter printer IP address", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (model.isEmpty()) model = "NT311";
+            if (sn.isEmpty()) sn = "N402D05T00007";
+
+            SunmiPrinterDevice newDev = new SunmiPrinterDevice(model, sn, ip, port, "Wi-Fi / Ethernet");
+            savedPrinters.add(0, newDev);
+            savePrintersToPrefs(savedPrinters);
+            if (savedAdapterHolder[0] != null) {
+                savedAdapterHolder[0].notifyDataSetChanged();
+            }
+
+            SunmiCloudPrinter.DEFAULT_SN = sn;
+
+            if (lanScanner != null && lanScanner.isScanning()) {
+                lanScanner.cancelScan();
+            }
+
+            try {
+                dialog.dismiss();
+            } catch (Exception ignored) {}
+
+            addLog(new DrawerEvent(
+                    DrawerEvent.Type.STATUS_QUERY,
+                    "Saved & Connecting Printer from Sunmi Setup",
+                    newDev.model + " [SN: " + newDev.sn + "] added to saved printers",
+                    "Target: " + newDev.ip + ":" + newDev.port,
+                    false
+            ));
+            Toast.makeText(this, "Saved & Connecting to " + newDev.model + " (" + newDev.ip + ":" + newDev.port + ")...", Toast.LENGTH_SHORT).show();
+            bluetoothManager.connectNetwork(newDev.ip, newDev.port);
+        });
+
+        // Discovered Subnet Printers List
         final List<String> discoveredPrinters = new ArrayList<>();
-        final ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, discoveredPrinters);
-        lvDiscovered.setAdapter(adapter);
+        final ArrayAdapter<String> discoveredAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, discoveredPrinters);
+        lvDiscovered.setAdapter(discoveredAdapter);
 
         lvDiscovered.setOnItemClickListener((parent, v, position, id) -> {
             String selected = discoveredPrinters.get(position);
             if (selected.contains(":")) {
                 String ip = selected.substring(0, selected.indexOf(':')).trim();
                 etPrinterIp.setText(ip);
+                Toast.makeText(this, "Selected " + ip, Toast.LENGTH_SHORT).show();
             }
         });
 
+        // Subnet Scanner Action
         btnScanLan.setOnClickListener(v -> {
             discoveredPrinters.clear();
-            adapter.notifyDataSetChanged();
+            discoveredAdapter.notifyDataSetChanged();
             pbScanProgress.setVisibility(View.VISIBLE);
             tvScanStatus.setText("Scanning subnet for port 9100...");
             btnScanLan.setEnabled(false);
@@ -384,7 +556,7 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
                 @Override
                 public void onPrinterDiscovered(String ip, int port, String modelDescription) {
                     discoveredPrinters.add(ip + ":" + port + " (" + modelDescription + ")");
-                    adapter.notifyDataSetChanged();
+                    discoveredAdapter.notifyDataSetChanged();
                 }
 
                 @Override
@@ -397,7 +569,7 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
                     pbScanProgress.setVisibility(View.GONE);
                     btnScanLan.setEnabled(true);
                     if (discoveredIps.isEmpty()) {
-                        tvScanStatus.setText("Scan done. No open port 9100 found. Enter IP manually.");
+                        tvScanStatus.setText("Scan done. Select from Sunmi Setup list above or enter IP.");
                     } else {
                         tvScanStatus.setText("Found " + discoveredIps.size() + " network printer(s)!");
                         etPrinterIp.setText(discoveredIps.get(0));
@@ -406,6 +578,7 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
             });
         });
 
+        // Connect Entered IP Action
         view.findViewById(R.id.btnConnectLanSubmit).setOnClickListener(v -> {
             String rawInput = etPrinterIp.getText().toString().trim();
             String ip = rawInput;

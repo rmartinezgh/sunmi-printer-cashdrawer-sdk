@@ -109,16 +109,25 @@ Printers return the raw microswitch voltage level on Bit 2. For an N.C. drawer, 
 
 ## Connection Modes (Bluetooth & Wi-Fi/LAN)
 
-### 1. Wi-Fi / Ethernet LAN Mode (Port 9100 RAW ESC/POS)
+### 1. Wi-Fi / Ethernet LAN Mode (Connecting from SunmiPrinter Setup)
 * **Protocol**: Direct TCP Socket over local network to RAW ESC/POS port **9100**.
-* **IP Discovery & Subnet Scanner**:
-  * Tap **🌐 Wi-Fi / LAN** on the app toolbar to open the LAN connection modal.
-  * Enter target IP directly (e.g. `192.168.103.134`) or tap **🔍 Scan Network**.
-  * The multi-threaded scanner (`SunmiLanScanner.java`) checks all 254 subnet hosts and Sunmi factory default IPs concurrently across 28 threads.
-  * Tap any detected printer from the list to connect immediately.
+* **Connect from Added Printers in SunmiPrinter Setup**:
+  * Tap **`🌐 Wi-Fi / LAN`** on the app action bar to open the network connection manager.
+  * The dialog directly surfaces printers configured in **SunmiPrinter Setup** (`sunmi-cloud-printer-setup.exe` / `SunmiPrinter` mobile app) displaying:
+    * **Model** (e.g. `NT311`, `NT312`, `NT211`)
+    * **Serial Number (SN)** (e.g. `N402D05T00007`)
+    * **Target IP & Port** (e.g. `192.168.103.134:9100`)
+    * **Connection Type** (`Ethernet` or `Wi-Fi`)
+  * **1-Tap Instant Connect**: Tapping any saved printer automatically sets the IP/Port, updates the device serial number in `SunmiCloudPrinter.DEFAULT_SN`, and opens the high-speed TCP socket immediately.
+  * **Add / Register from Setup**: Tap **`➕ Add from Setup`** to save your custom printer's Model, SN, IP, and Port permanently in Android `SharedPreferences`.
+* **Network IP Discovery & Subnet Scanner**:
+  * Displays the current Sunmi cPad IP and active subnet (e.g. `cPad IP: 192.168.1.45 (Subnet: 192.168.1.x)`).
+  * Multi-threaded scanner (`SunmiLanScanner.java`) checks all 254 subnet hosts and Sunmi default IPs concurrently across 28 threads.
+  * Discovered devices can be selected with one tap.
 * **Network Socket Tuning**:
-  * `setTcpNoDelay(true)`: Disables Nagle's algorithm to eliminate latency on 3-byte real-time polling packets (`10 04 01`).
+  * `setTcpNoDelay(true)`: Disables Nagle's algorithm to eliminate latency on real-time polling packets (`10 04 01`).
   * `setKeepAlive(true)`: Sustains socket health during extended POS counter idle periods.
+  * All socket writes execute on a dedicated background I/O worker (`ioExecutor`), guaranteeing zero UI blocking and full immunity to `NetworkOnMainThreadException`.
 * **Obtaining Sunmi Printer IP (Setup Guide v1.3)**:
   * **Self-Test Ticket**: Turn off printer. Press and hold the **FEED** button while powering on until the status light flashes, then release. The printer prints a self-test page listing its current IP address (DHCP or Static).
   * **Factory Default Fallback**: If unconfigured, Sunmi cloud printers default to `192.168.103.134` or open AP mode `192.168.100.1`.

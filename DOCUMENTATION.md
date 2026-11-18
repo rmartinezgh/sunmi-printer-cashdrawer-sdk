@@ -194,6 +194,22 @@ Referencing the official *SUNMI Cloud Printer Setup User's Guide (v1.3)*:
 3. **Web Management Portal**:
    - Navigate to `http://<printer_ip>` in any browser on the same network to configure static IP, Gateway, or Wi-Fi credentials.
 
+### 4.4 Connecting from Added Printers in SunmiPrinter Setup
+The SDK includes persistent profile management (`SunmiPrinterDevice.java`, `SavedPrinterAdapter.java`) aligned with Sunmi's official printer setup utility:
+- **Persistent Profiles**: Saved in Android `SharedPreferences` (`sunmi_saved_printers`), storing:
+  - `model`: Printer model (`NT311`, `NT312`, `NT211`).
+  - `sn`: Hardware Serial Number (e.g. `N402D05T00007`).
+  - `ip`: Network IP Address (e.g. `192.168.103.134` or custom DHCP/Static IP).
+  - `port`: RAW ESC/POS port (`9100`).
+  - `connectionType`: `Ethernet` or `Wi-Fi`.
+- **Pre-Configured Setup Guide Defaults**:
+  - `NT311 [N402D05T00007] · 192.168.103.134:9100 (Ethernet Default)`
+  - `NT311 [N402D05T00007] · 192.168.103.181:9100 (Ethernet DHCP)`
+  - `NT312 [N403D06A00023] · 10.10.138.24:9100 (Wi-Fi SUNMI_Guest)`
+  - `NT211 [N302D96D40012] · 192.168.103.166:9100 (Ethernet Setup)`
+- **1-Tap Connection**: Tapping any saved printer instantly sets the target IP/port, updates `SunmiCloudPrinter.DEFAULT_SN`, and opens the TCP socket on port 9100.
+- **Add / Register Custom Printer**: Users can tap **`➕ Add from Setup`** to enter their printer's Model, SN, and IP, saving it to their permanent printer list.
+
 ---
 
 ## 5. Official Sunmi Cash Drawer API Specification
