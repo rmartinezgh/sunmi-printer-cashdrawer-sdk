@@ -4,19 +4,29 @@ plugins {
 
 android {
     namespace 'com.sunmi.cashdrawer.simulator'
-    compileSdk 34
+    compileSdk 33
 
     defaultConfig {
         applicationId "com.sunmi.cashdrawer.simulator"
         minSdk 21
-        targetSdk 34
+        targetSdk 33
         versionCode 1
         versionName "1.0.0"
+    }
+
+    signingConfigs {
+        release {
+            storeFile file('../../release.keystore')
+            storePassword 'sunmi123456'
+            keyAlias 'sunmi_release_key'
+            keyPassword 'sunmi123456'
+        }
     }
 
     buildTypes {
         release {
             minifyEnabled false
+            signingConfig signingConfigs.release
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
