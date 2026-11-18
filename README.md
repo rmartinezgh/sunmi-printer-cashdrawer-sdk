@@ -231,20 +231,34 @@ The simulation app provides an interactive dashboard:
 
 ## 6. How to Build & Install the APK
 
-### Instant One-Click Build
-Run the included build script:
-```bat
-build_apk.bat
-```
+### Android 13 (API 33) Release APK
+The project includes a pre-built, production-signed **Android 13 Release APK**:
+* `app/build/outputs/apk/release/app-release.apk`
+* `build/SunmiCashDrawerSimulator-Android13-release.apk`
 
-### Pre-built APK Location
-The signed APK is ready for deployment:
-* `build/SunmiCashDrawerSimulator.apk`
-* `app/build/outputs/apk/debug/app-debug.apk`
+Specifications:
+* **Target SDK**: Android 13 (API 33, Tiramisu)
+* **Min SDK**: API 21 (Android 5.0+)
+* **Signature**: v1 (JAR), v2, and v3 APK Signature Schemes
+* **Keystore**: `release.keystore` (Alias: `sunmi_release_key`)
 
-### Install on Device or Emulator via ADB
+### Instant One-Click Build Scripts
+* **Build Android 13 Release APK**:
+  ```bat
+  build_release_apk.bat
+  ```
+* **Build Debug APK**:
+  ```bat
+  build_apk.bat
+  ```
+
+### Install Release APK on Device or POS Terminal via ADB
 ```bash
-adb install -r build/SunmiCashDrawerSimulator.apk
+adb install -r app/build/outputs/apk/release/app-release.apk
+```
+Or:
+```bash
+adb install -r build/SunmiCashDrawerSimulator-Android13-release.apk
 ```
 Or launch via ADB:
 ```bash
