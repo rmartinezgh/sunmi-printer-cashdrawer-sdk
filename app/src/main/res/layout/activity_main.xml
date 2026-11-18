@@ -1,0 +1,515 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/bg_main"
+    android:padding="12dp">
+
+    <!-- Top App Bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingBottom="10dp">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="SUNMI CLOUD PRINTER"
+                android:textColor="@color/sunmi_orange"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.08" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Cash Drawer Status &amp; Alert Simulator"
+                android:textColor="@color/text_primary"
+                android:textSize="17sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tvCloudStatusPill"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="● CLOUD ONLINE"
+            android:textColor="#34D399"
+            android:textSize="11sp"
+            android:fontFamily="monospace"
+            android:background="#064E3B"
+            android:paddingLeft="8dp"
+            android:paddingRight="8dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:layout_marginRight="8dp" />
+
+        <Button
+            android:id="@+id/btnSettings"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="Config"
+            android:textColor="@color/text_primary"
+            android:textSize="12sp"
+            android:background="@drawable/bg_terminal"
+            android:paddingLeft="12dp"
+            android:paddingRight="12dp" />
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- Hardware Visualizer Card -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/bg_card"
+                android:padding="14dp"
+                android:layout_marginBottom="10dp">
+
+                <!-- Header with Status Badge -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="12dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="HARDWARE PERIPHERAL (RJ12)"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.05" />
+
+                    <!-- Status Badge -->
+                    <TextView
+                        android:id="@+id/tvStatusBadge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_status_badge"
+                        android:text="CLOSED (SECURED)"
+                        android:textColor="@color/status_closed_fg"
+                        android:textSize="13sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <!-- Visual Cash Drawer Representation -->
+                <FrameLayout
+                    android:id="@+id/layoutDrawerChassis"
+                    android:layout_width="match_parent"
+                    android:layout_height="130dp"
+                    android:background="#0A0E17"
+                    android:layout_marginBottom="12dp"
+                    android:padding="8dp">
+
+                    <!-- Outer Case / Shadow -->
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="#1E293B" />
+
+                    <!-- Sliding Drawer Box -->
+                    <LinearLayout
+                        android:id="@+id/layoutSlidingDrawer"
+                        android:layout_width="match_parent"
+                        android:layout_height="90dp"
+                        android:layout_gravity="center_horizontal|top"
+                        android:orientation="vertical"
+                        android:background="#334155"
+                        android:padding="6dp">
+
+                        <!-- Front Handle & Lock Keyhole -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="18dp"
+                            android:orientation="horizontal"
+                            android:gravity="center"
+                            android:background="#1E293B">
+
+                            <View
+                                android:layout_width="50dp"
+                                android:layout_height="5dp"
+                                android:background="#64748B" />
+
+                            <View
+                                android:layout_width="8dp"
+                                android:layout_height="8dp"
+                                android:layout_marginLeft="16dp"
+                                android:background="#F59E0B" />
+                        </LinearLayout>
+
+                        <!-- Compartments inside Cash Drawer -->
+                        <LinearLayout
+                            android:id="@+id/layoutDrawerCompartments"
+                            android:layout_width="match_parent"
+                            android:layout_height="0dp"
+                            android:layout_weight="1"
+                            android:orientation="horizontal"
+                            android:layout_marginTop="4dp">
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="match_parent"
+                                android:layout_weight="1"
+                                android:background="#0F172A"
+                                android:text="💵 ¥100"
+                                android:textColor="#10B981"
+                                android:gravity="center"
+                                android:textSize="11sp"
+                                android:layout_marginRight="4dp" />
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="match_parent"
+                                android:layout_weight="1"
+                                android:background="#0F172A"
+                                android:text="💵 ¥50"
+                                android:textColor="#10B981"
+                                android:gravity="center"
+                                android:textSize="11sp"
+                                android:layout_marginRight="4dp" />
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="match_parent"
+                                android:layout_weight="1"
+                                android:background="#0F172A"
+                                android:text="💵 ¥20"
+                                android:textColor="#10B981"
+                                android:gravity="center"
+                                android:textSize="11sp"
+                                android:layout_marginRight="4dp" />
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="match_parent"
+                                android:layout_weight="1"
+                                android:background="#0F172A"
+                                android:text="🪙 COINS"
+                                android:textColor="#F59E0B"
+                                android:gravity="center"
+                                android:textSize="11sp" />
+                        </LinearLayout>
+
+                    </LinearLayout>
+
+                    <!-- Alert Overlay Indicator -->
+                    <TextView
+                        android:id="@+id/tvAlertBanner"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="bottom"
+                        android:background="#DC2626"
+                        android:text="⚠️ CASHDRAWER OPEN OVERTIME ALERT (>30s) - PLEASE CLOSE!"
+                        android:textColor="#FFFFFF"
+                        android:textStyle="bold"
+                        android:textSize="11sp"
+                        android:gravity="center"
+                        android:padding="4dp"
+                        android:visibility="gone" />
+
+                </FrameLayout>
+
+                <!-- Hardware Pin Status & Telemetry Grid -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <!-- Pin 3 Status -->
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:background="#0F172A"
+                        android:padding="8dp"
+                        android:layout_marginRight="4dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="PIN 3 (SWITCH)"
+                            android:textColor="@color/text_muted"
+                            android:textSize="10sp"
+                            android:fontFamily="monospace" />
+
+                        <TextView
+                            android:id="@+id/tvPin3Status"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="HIGH (Closed)"
+                            android:textColor="#34D399"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <!-- Pin 2 Solenoid Drive -->
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:background="#0F172A"
+                        android:padding="8dp"
+                        android:layout_marginRight="4dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="PIN 2 (DRIVE)"
+                            android:textColor="@color/text_muted"
+                            android:textSize="10sp"
+                            android:fontFamily="monospace" />
+
+                        <TextView
+                            android:id="@+id/tvPin2Status"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="IDLE"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <!-- Open Duration Timer -->
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:background="#0F172A"
+                        android:padding="8dp"
+                        android:layout_marginRight="4dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="OPEN TIMER"
+                            android:textColor="@color/text_muted"
+                            android:textSize="10sp"
+                            android:fontFamily="monospace" />
+
+                        <TextView
+                            android:id="@+id/tvOpenTimer"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="00:00"
+                            android:textColor="@color/text_primary"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <!-- Total Open Counter -->
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical"
+                        android:background="#0F172A"
+                        android:padding="8dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="OPENS COUNT"
+                            android:textColor="@color/text_muted"
+                            android:textSize="10sp"
+                            android:fontFamily="monospace" />
+
+                        <TextView
+                            android:id="@+id/tvOpenCount"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0"
+                            android:textColor="@color/sunmi_orange"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <!-- Control Action Deck -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/bg_card"
+                android:padding="12dp"
+                android:layout_marginBottom="10dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="SIMULATION &amp; CLOUD CONTROLS"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.05"
+                    android:layout_marginBottom="8dp" />
+
+                <!-- Action Button Row 1 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="8dp">
+
+                    <Button
+                        android:id="@+id/btnKickCloud"
+                        android:layout_width="0dp"
+                        android:layout_height="44dp"
+                        android:layout_weight="1"
+                        android:text="⚡ Kick Drawer (Cloud)"
+                        android:textColor="#FFFFFF"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="@color/sunmi_orange"
+                        android:layout_marginRight="6dp" />
+
+                    <Button
+                        android:id="@+id/btnManualOpen"
+                        android:layout_width="0dp"
+                        android:layout_height="44dp"
+                        android:layout_weight="1"
+                        android:text="👐 Manual Open"
+                        android:textColor="@color/text_primary"
+                        android:textSize="12sp"
+                        android:backgroundTint="#334155" />
+                </LinearLayout>
+
+                <!-- Action Button Row 2 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="8dp">
+
+                    <Button
+                        android:id="@+id/btnManualClose"
+                        android:layout_width="0dp"
+                        android:layout_height="44dp"
+                        android:layout_weight="1"
+                        android:text="🔒 Close Drawer"
+                        android:textColor="@color/text_primary"
+                        android:textSize="12sp"
+                        android:backgroundTint="#1E293B"
+                        android:layout_marginRight="6dp" />
+
+                    <Button
+                        android:id="@+id/btnSimAlarm"
+                        android:layout_width="0dp"
+                        android:layout_height="44dp"
+                        android:layout_weight="1"
+                        android:text="🚨 Test Timeout Alarm"
+                        android:textColor="#FFFFFF"
+                        android:textSize="12sp"
+                        android:backgroundTint="#991B1B" />
+                </LinearLayout>
+
+                <!-- Action Button Row 3 -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btnSimWebhook"
+                        android:layout_width="0dp"
+                        android:layout_height="42dp"
+                        android:layout_weight="1"
+                        android:text="📡 Sim Cloud Webhook"
+                        android:textColor="@color/text_primary"
+                        android:textSize="12sp"
+                        android:backgroundTint="#1E3A8A"
+                        android:layout_marginRight="6dp" />
+
+                    <Button
+                        android:id="@+id/btnCheckStatus"
+                        android:layout_width="0dp"
+                        android:layout_height="42dp"
+                        android:layout_weight="1"
+                        android:text="🔎 Query OpenAPI"
+                        android:textColor="@color/text_primary"
+                        android:textSize="12sp"
+                        android:backgroundTint="#1E293B" />
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <!-- Audit Trail & Event Log Header -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="6dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="REAL-TIME AUDIT &amp; ALERT LOGS"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.05" />
+
+                <TextView
+                    android:id="@+id/btnClearLogs"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Clear"
+                    android:textColor="@color/sunmi_orange"
+                    android:textSize="12sp"
+                    android:paddingLeft="8dp"
+                    android:paddingRight="8dp" />
+
+                <TextView
+                    android:id="@+id/btnCopyLogs"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Copy"
+                    android:textColor="#38BDF8"
+                    android:textSize="12sp"
+                    android:paddingLeft="8dp" />
+            </LinearLayout>
+
+            <!-- Event Logs ListView -->
+            <ListView
+                android:id="@+id/lvDrawerLogs"
+                android:layout_width="match_parent"
+                android:layout_height="220dp"
+                android:divider="#1E293B"
+                android:dividerHeight="4dp"
+                android:transcriptMode="alwaysScroll"
+                android:scrollbars="vertical" />
+
+        </LinearLayout>
+    </ScrollView>
+
+</LinearLayout>

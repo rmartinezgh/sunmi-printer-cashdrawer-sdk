@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.SunmiCashDrawer" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:colorPrimary">@color/sunmi_orange</item>
+        <item name="android:colorPrimaryDark">@color/sunmi_orange_dark</item>
+        <item name="android:colorAccent">@color/sunmi_orange</item>
+        <item name="android:windowBackground">@color/bg_main</item>
+        <item name="android:textColorPrimary">@color/text_primary</item>
+    </style>
+</resources>

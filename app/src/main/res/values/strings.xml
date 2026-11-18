@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Sunmi CashDrawer Simulator</string>
+    <string name="title_cashdrawer_status">CASHDRAWER HARDWARE STATUS</string>
+    <string name="status_closed">CLOSED (SECURED)</string>
+    <string name="status_open">OPEN (IN TRANSACTION)</string>
+    <string name="status_alert">ALERT: UNCLOSED OVERTIME!</string>
+    <string name="pin3_sensor_closed">Sensor: RJ12 Pin 3 HIGH (Closed)</string>
+    <string name="pin3_sensor_open">Sensor: RJ12 Pin 3 LOW (Open)</string>
+    <string name="btn_kick_cloud">Kick Drawer (Cloud)</string>
+    <string name="btn_manual_open">Manual Open</string>
+    <string name="btn_manual_close">Manual Close</string>
+    <string name="btn_sim_alarm">Simulate Alarm</string>
+    <string name="btn_sim_webhook">Simulate Webhook</string>
+    <string name="btn_check_status">Query OpenAPI</string>
+    <string name="btn_config">Settings</string>
+    <string name="title_live_logs">LIVE AUDIT &amp; EVENT LOG</string>
+</resources>

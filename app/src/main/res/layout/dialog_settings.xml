@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="SUNMI APP_ID"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:textColor="@color/text_secondary" />
+
+    <EditText
+        android:id="@+id/etAppId"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:inputType="text"
+        android:textColor="@color/text_primary"
+        android:textSize="13sp"
+        android:fontFamily="monospace"
+        android:layout_marginBottom="12dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="SUNMI APP_KEY"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:textColor="@color/text_secondary" />
+
+    <EditText
+        android:id="@+id/etAppKey"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:inputType="textPassword"
+        android:textColor="@color/text_primary"
+        android:textSize="13sp"
+        android:fontFamily="monospace"
+        android:layout_marginBottom="12dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="PRINTER SERIAL NUMBER (SN)"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:textColor="@color/text_secondary" />
+
+    <EditText
+        android:id="@+id/etSn"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:inputType="text"
+        android:textColor="@color/text_primary"
+        android:textSize="13sp"
+        android:fontFamily="monospace"
+        android:layout_marginBottom="12dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="UNCLOSED OVERTIME ALARM THRESHOLD (SECONDS)"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:textColor="@color/text_secondary" />
+
+    <EditText
+        android:id="@+id/etTimeout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:inputType="number"
+        android:textColor="@color/text_primary"
+        android:textSize="13sp"
+        android:fontFamily="monospace" />
+
+</LinearLayout>
