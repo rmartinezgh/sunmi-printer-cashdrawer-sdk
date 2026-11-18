@@ -20,6 +20,7 @@ This repository provides an enterprise-grade, production-ready solution for **Ca
 8. [Sunmi Cloud OpenAPI & Webhooks](#sunmi-cloud-openapi--webhooks)
 9. [Production APK Build & Installation (Android 13)](#production-apk-build--installation-android-13)
 10. [Repository Structure](#repository-structure)
+11. [Support This Open-Source Project](#️-support-this-open-source-project)
 
 ---
 
@@ -288,10 +289,12 @@ sunmi_printer_cashdrawer_sdk/
 │       │   ├── ICallback.java                   # Official Sunmi callback interface
 │       │   ├── LogAdapter.java                  # Custom ListView adapter
 │       │   ├── MainActivity.java                # UI Dashboard & dual connection controller
+│       │   ├── SavedPrinterAdapter.java         # SunmiPrinter setup device adapter
 │       │   ├── SunmiBluetoothManager.java       # Unified BT/LAN ESC/POS manager & status decoder
 │       │   ├── SunmiCashDrawerApi.java          # Official xfxdeghjk524 interface
 │       │   ├── SunmiCloudPrinter.java           # Java SDK & ESC/POS builder
 │       │   ├── SunmiLanScanner.java             # Multi-threaded port 9100 subnet scanner
+│       │   ├── SunmiPrinterDevice.java          # SunmiPrinter profile entity
 │       │   └── SunmiWebhookServer.java          # Embedded HTTP webhook server (port 8080)
 │       └── res/
 │           ├── layout/
@@ -299,7 +302,8 @@ sunmi_printer_cashdrawer_sdk/
 │           │   ├── dialog_connect_lan.xml       # Wi-Fi / LAN IP entry & subnet scan dialog
 │           │   ├── dialog_drawer_report.xml     # Cash drawer audit report dialog
 │           │   ├── dialog_settings.xml          # Configuration modal
-│           │   └── item_drawer_log.xml          # Audit log list row
+│           │   ├── item_drawer_log.xml          # Audit log list row
+│           │   └── item_saved_printer.xml       # SunmiPrinter setup device item row
 │           └── values/
 │               ├── colors.xml                   # POS theme palette
 │               └── strings.xml                  # Localized strings
@@ -310,3 +314,53 @@ sunmi_printer_cashdrawer_sdk/
 ├── README.md                                  # Project overview & quickstart
 └── DOCUMENTATION.md                           # Comprehensive Developer Manual
 ```
+
+---
+
+## ❤️ Support This Open-Source Project
+
+### SUNMI Cloud Printer & Cash Drawer SDK
+
+This project is independently developed and maintained
+to help POS developers and system integrators work with
+SUNMI-compatible cloud printers and cash drawers.
+
+If this SDK saves you development time, helps your
+business, or improves your POS integration, please
+consider sponsoring its continued development.
+
+[![Sponsor](https://img.shields.io/badge/Sponsor-GitHub-ea4aaa?logo=githubsponsors)](https://github.com/sponsors/rmartinezgh)
+
+**[❤️ Become a GitHub Sponsor](https://github.com/sponsors/rmartinezgh)**
+
+### What Your Sponsorship Supports
+
+- Bluetooth SPP and TCP/LAN printer connectivity
+- Real-time cash drawer status monitoring
+- Cash drawer polarity detection and calibration
+- ESC/POS command integration and improvements
+- Cash drawer audit logging and security alerts
+- Android SDK enhancements and bug fixes
+- Device compatibility testing
+- Documentation and example implementations
+
+### For Businesses and POS Developers
+
+If your business uses this SDK in a commercial POS
+application, corporate sponsorship is welcome.
+
+Sponsorship helps sustain the project's public
+development and long-term maintenance.
+
+### Thank You
+
+Every contribution helps keep this project available
+to the developer community.
+
+Developed and maintained by
+[rmartinezgh](https://github.com/rmartinezgh).
+
+*Independent community project. Not an official
+SUNMI-sponsored SDK.*
+
+---
