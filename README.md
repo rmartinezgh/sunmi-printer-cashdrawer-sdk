@@ -159,7 +159,52 @@ When the printer's Pin 3 microswitch state changes, Sunmi Cloud pushes an HTTP P
 
 ---
 
-## 4. Java SDK Usage (`sdk/SunmiCloudPrinter.java`)
+## 4. Bluetooth Mode (Sunmi cPad to Sunmi NT311)
+
+In Bluetooth setup, the Sunmi cPad and NT311 connect wirelessly over the **Bluetooth Serial Port Profile (SPP)**:
+
+```
+  ┌────────────────────────────────────────────────────────┐
+  │                       Sunmi cPad                       │
+  │               (Android 13 POS Terminal)                │
+  └───────────────────────────┬────────────────────────────┘
+                              │
+               Bluetooth RFCOMM SPP (Channel 1)
+           UUID: 00001101-0000-1000-8000-00805F9B34FB
+                              │
+                              ▼
+  ┌────────────────────────────────────────────────────────┐
+  │               Sunmi NT311 Cloud Printer                │
+  │    (Direct ESC/POS interpreter & RJ12 Solenoid / Pin 3)│
+  └───────────────────────────┬────────────────────────────┘
+                              │
+                         RJ12 Cable
+                              │
+                              ▼
+  ┌────────────────────────────────────────────────────────┐
+  │                      Cash Drawer                       │
+  │  - 24V Solenoid (Kick)                                 │
+  │  - Microswitch (Status Sensor: Closed=HIGH, Open=LOW)  │
+  └────────────────────────────────────────────────────────┘
+```
+
+### Bluetooth ESC/POS Protocol Flow:
+1. **Pairing**: In cPad Android Settings -> Bluetooth, pair with the NT311 printer (e.g. `NT311-xxxx`, PIN `0000` or `1234`).
+2. **RFCOMM Connection**: Tap `📶 Connect NT311 (Bluetooth)` in the app.
+3. **Kick Cash Drawer (`1B 70 00 19 FA`)**:
+   Sent directly to the printer's output stream, firing the 24V solenoid on RJ12 Pin 2.
+4. **Real-time Status Detection (`10 04 01` & ASB `1D 61 01`)**:
+   * Continuous background thread queries `DLE EOT 1` every 1 second or listens for ASB pushes.
+   * Status Byte Bit 2:
+     * `0`: Cash Drawer Closed (Pin 3 HIGH)
+     * `1`: Cash Drawer Open (Pin 3 LOW)
+   * When Bit 2 changes, the cPad immediately updates the cash drawer graphic, starts/stops the 30-second watchdog timer, and logs the hardware event.
+5. **Print & Kick Combined**:
+   Sends receipt text + paper feed + auto-cut (`1D 56 31`) + drawer kick (`1B 70 00 19 FA`) in a single payload.
+
+---
+
+## 5. Java SDK Usage (`sdk/SunmiCloudPrinter.java`)
 
 ```java
 import com.sunmi.cloudprinter.sdk.SunmiCloudPrinter;
