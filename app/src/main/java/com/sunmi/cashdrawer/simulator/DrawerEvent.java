@@ -13,6 +13,10 @@ public class DrawerEvent {
         CLOUD_KICK_SENT("[CLOUD:KICK]", "#60A5FA"),
         WEBHOOK_RECEIVED("[WEBHOOK:IN]", "#A78BFA"),
         STATUS_QUERY("[STATUS:API]", "#38BDF8"),
+        BT_CONNECTED("[BT:CONNECT]", "#34D399"),
+        BT_DISCONNECTED("[BT:DISCONN]", "#94A3B8"),
+        BT_KICK_SENT("[BT:KICK]", "#38BDF8"),
+        BT_STATUS("[BT:STATUS]", "#A78BFA"),
         ERROR("[ERROR]", "#F87171");
 
         public final String tag;

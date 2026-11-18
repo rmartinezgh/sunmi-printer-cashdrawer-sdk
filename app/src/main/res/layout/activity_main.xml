@@ -23,7 +23,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="SUNMI CLOUD PRINTER"
+                android:text="SUNMI cPad &amp; NT311"
                 android:textColor="@color/sunmi_orange"
                 android:textSize="12sp"
                 android:textStyle="bold"
@@ -32,26 +32,27 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Cash Drawer Status &amp; Alert Simulator"
+                android:text="Bluetooth Cash Drawer Controller"
                 android:textColor="@color/text_primary"
-                android:textSize="17sp"
+                android:textSize="16sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
+        <!-- Bluetooth Status Pill -->
         <TextView
-            android:id="@+id/tvCloudStatusPill"
+            android:id="@+id/tvBtStatusPill"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="● CLOUD ONLINE"
-            android:textColor="#34D399"
+            android:text="● BT: OFF"
+            android:textColor="#94A3B8"
             android:textSize="11sp"
             android:fontFamily="monospace"
-            android:background="#064E3B"
+            android:background="#1E293B"
             android:paddingLeft="8dp"
             android:paddingRight="8dp"
             android:paddingTop="4dp"
             android:paddingBottom="4dp"
-            android:layout_marginRight="8dp" />
+            android:layout_marginRight="6dp" />
 
         <Button
             android:id="@+id/btnSettings"
@@ -94,10 +95,11 @@
                     android:layout_marginBottom="12dp">
 
                     <TextView
+                        android:id="@+id/tvDeviceHeaderLabel"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="HARDWARE PERIPHERAL (RJ12)"
+                        android:text="NT311 RJ12 CASHDRAWER"
                         android:textColor="@color/text_secondary"
                         android:textSize="11sp"
                         android:textStyle="bold"
@@ -353,7 +355,7 @@
 
             </LinearLayout>
 
-            <!-- Control Action Deck -->
+            <!-- Bluetooth & Peripheral Controls -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -365,14 +367,14 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="SIMULATION &amp; CLOUD CONTROLS"
+                    android:text="BLUETOOTH (NT311) &amp; HARDWARE CONTROLS"
                     android:textColor="@color/text_secondary"
                     android:textSize="11sp"
                     android:textStyle="bold"
                     android:letterSpacing="0.05"
                     android:layout_marginBottom="8dp" />
 
-                <!-- Action Button Row 1 -->
+                <!-- Bluetooth Connect / Disconnect Row -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -380,11 +382,41 @@
                     android:layout_marginBottom="8dp">
 
                     <Button
-                        android:id="@+id/btnKickCloud"
+                        android:id="@+id/btnConnectBt"
                         android:layout_width="0dp"
                         android:layout_height="44dp"
                         android:layout_weight="1"
-                        android:text="⚡ Kick Drawer (Cloud)"
+                        android:text="📶 Connect NT311 (Bluetooth)"
+                        android:textColor="#FFFFFF"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:backgroundTint="#0284C7"
+                        android:layout_marginRight="6dp" />
+
+                    <Button
+                        android:id="@+id/btnQueryBtStatus"
+                        android:layout_width="0dp"
+                        android:layout_height="44dp"
+                        android:layout_weight="1"
+                        android:text="🔍 Poll NT311 Status"
+                        android:textColor="@color/text_primary"
+                        android:textSize="12sp"
+                        android:backgroundTint="#1E293B" />
+                </LinearLayout>
+
+                <!-- Kick & Receipt Controls -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="8dp">
+
+                    <Button
+                        android:id="@+id/btnKickBt"
+                        android:layout_width="0dp"
+                        android:layout_height="44dp"
+                        android:layout_weight="1"
+                        android:text="⚡ Kick Drawer (Bluetooth)"
                         android:textColor="#FFFFFF"
                         android:textSize="12sp"
                         android:textStyle="bold"
@@ -392,71 +424,53 @@
                         android:layout_marginRight="6dp" />
 
                     <Button
-                        android:id="@+id/btnManualOpen"
+                        android:id="@+id/btnPrintReceiptBt"
                         android:layout_width="0dp"
                         android:layout_height="44dp"
                         android:layout_weight="1"
-                        android:text="👐 Manual Open"
+                        android:text="🧾 Test Print &amp; Kick"
                         android:textColor="@color/text_primary"
                         android:textSize="12sp"
                         android:backgroundTint="#334155" />
                 </LinearLayout>
 
-                <!-- Action Button Row 2 -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:layout_marginBottom="8dp">
-
-                    <Button
-                        android:id="@+id/btnManualClose"
-                        android:layout_width="0dp"
-                        android:layout_height="44dp"
-                        android:layout_weight="1"
-                        android:text="🔒 Close Drawer"
-                        android:textColor="@color/text_primary"
-                        android:textSize="12sp"
-                        android:backgroundTint="#1E293B"
-                        android:layout_marginRight="6dp" />
-
-                    <Button
-                        android:id="@+id/btnSimAlarm"
-                        android:layout_width="0dp"
-                        android:layout_height="44dp"
-                        android:layout_weight="1"
-                        android:text="🚨 Test Timeout Alarm"
-                        android:textColor="#FFFFFF"
-                        android:textSize="12sp"
-                        android:backgroundTint="#991B1B" />
-                </LinearLayout>
-
-                <!-- Action Button Row 3 -->
+                <!-- Manual & Simulation Action Row -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal">
 
                     <Button
-                        android:id="@+id/btnSimWebhook"
+                        android:id="@+id/btnManualOpen"
                         android:layout_width="0dp"
                         android:layout_height="42dp"
                         android:layout_weight="1"
-                        android:text="📡 Sim Cloud Webhook"
+                        android:text="👐 Manual Open"
                         android:textColor="@color/text_primary"
                         android:textSize="12sp"
-                        android:backgroundTint="#1E3A8A"
-                        android:layout_marginRight="6dp" />
+                        android:backgroundTint="#1E293B"
+                        android:layout_marginRight="4dp" />
 
                     <Button
-                        android:id="@+id/btnCheckStatus"
+                        android:id="@+id/btnManualClose"
                         android:layout_width="0dp"
                         android:layout_height="42dp"
                         android:layout_weight="1"
-                        android:text="🔎 Query OpenAPI"
+                        android:text="🔒 Close Drawer"
                         android:textColor="@color/text_primary"
                         android:textSize="12sp"
-                        android:backgroundTint="#1E293B" />
+                        android:backgroundTint="#1E293B"
+                        android:layout_marginRight="4dp" />
+
+                    <Button
+                        android:id="@+id/btnSimAlarm"
+                        android:layout_width="0dp"
+                        android:layout_height="42dp"
+                        android:layout_weight="1"
+                        android:text="🚨 Test Alarm"
+                        android:textColor="#FFFFFF"
+                        android:textSize="12sp"
+                        android:backgroundTint="#991B1B" />
                 </LinearLayout>
 
             </LinearLayout>
@@ -473,7 +487,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="REAL-TIME AUDIT &amp; ALERT LOGS"
+                    android:text="REAL-TIME AUDIT &amp; STATUS LOGS"
                     android:textColor="@color/text_secondary"
                     android:textSize="11sp"
                     android:textStyle="bold"
