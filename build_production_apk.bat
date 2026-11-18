@@ -9,6 +9,7 @@ set BUILD_TOOLS=%SDK_DIR%\build-tools\34.0.0
 set ANDROID_JAR=%SDK_DIR%\platforms\android-33\android.jar
 set JDK_BIN=C:\Program Files\RedHat\java-1.8.0-openjdk-1.8.0.504-1\bin
 
+if exist build\classes rmdir /s /q build\classes
 if not exist build mkdir build
 if not exist build\compiled_res mkdir build\compiled_res
 if not exist build\gen mkdir build\gen
@@ -23,7 +24,7 @@ set JAVA_FILES=app\src\main\java\com\sunmi\cashdrawer\simulator\*.java build\gen
 "%JDK_BIN%\javac.exe" -encoding UTF-8 -O -cp "%ANDROID_JAR%" -d build\classes %JAVA_FILES%
 
 echo [3/6] Dexing with d8 (--release)...
-"%BUILD_TOOLS%\d8.bat" --release --min-api 21 --lib "%ANDROID_JAR%" --output build build\classes\com\sunmi\cashdrawer\simulator\*.class
+call "%BUILD_TOOLS%\d8.bat" --release --min-api 21 --lib "%ANDROID_JAR%" --output build build\classes\com\sunmi\cashdrawer\simulator\*.class
 
 echo [4/6] Packaging classes.dex into APK...
 cd build
@@ -34,7 +35,7 @@ echo [5/6] Aligning production APK (zipalign 4-byte)...
 "%BUILD_TOOLS%\zipalign.exe" -p -f 4 build\app-prod-unsigned.apk build\SunmiCashDrawerSimulator-Production-release.apk
 
 echo [6/6] Signing with Production Keystore (apksigner v1/v2/v3)...
-"%BUILD_TOOLS%\apksigner.bat" sign --ks production.keystore --ks-pass pass:sunmi_prod_2026 --ks-key-alias sunmi_cashdrawer_prod --key-pass pass:sunmi_prod_2026 build\SunmiCashDrawerSimulator-Production-release.apk
+call "%BUILD_TOOLS%\apksigner.bat" sign --ks production.keystore --ks-pass pass:sunmi_prod_2026 --ks-key-alias sunmi_cashdrawer_prod --key-pass pass:sunmi_prod_2026 build\SunmiCashDrawerSimulator-Production-release.apk
 
 if not exist app\build\outputs\apk\release mkdir app\build\outputs\apk\release
 copy /Y build\SunmiCashDrawerSimulator-Production-release.apk app\build\outputs\apk\release\app-release.apk
@@ -42,7 +43,7 @@ copy /Y build\SunmiCashDrawerSimulator-Production-release.apk app\build\outputs\
 
 echo.
 echo Verification:
-"%BUILD_TOOLS%\apksigner.bat" verify -v build\SunmiCashDrawerSimulator-Production-release.apk
+call "%BUILD_TOOLS%\apksigner.bat" verify -v build\SunmiCashDrawerSimulator-Production-release.apk
 
 echo.
 echo ======================================================================

@@ -43,6 +43,7 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
     private TextView tvBtStatusPill;
     private TextView tvDeviceHeaderLabel;
     private Button btnConnectBt;
+    private Button btnTogglePolarity;
 
     private ListView lvDrawerLogs;
     private LogAdapter logAdapter;
@@ -83,6 +84,7 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
         tvBtStatusPill = findViewById(R.id.tvBtStatusPill);
         tvDeviceHeaderLabel = findViewById(R.id.tvDeviceHeaderLabel);
         btnConnectBt = findViewById(R.id.btnConnectBt);
+        btnTogglePolarity = findViewById(R.id.btnTogglePolarity);
 
         lvDrawerLogs = findViewById(R.id.lvDrawerLogs);
         logAdapter = new LogAdapter(this, logList);
@@ -105,11 +107,15 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
 
         bluetoothManager = new SunmiBluetoothManager();
         bluetoothManager.setCallback(this);
+        updatePolarityButtonUI();
     }
 
     private void setupListeners() {
         // Bluetooth Connect Button
         btnConnectBt.setOnClickListener(v -> handleBluetoothConnectAction());
+
+        // Polarity Toggle
+        btnTogglePolarity.setOnClickListener(v -> togglePolarity());
 
         // Kick Drawer via Bluetooth (NT311 ESC/POS)
         findViewById(R.id.btnKickBt).setOnClickListener(v -> kickCashDrawerViaBluetooth());
@@ -152,6 +158,40 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
     // ==========================================
     // Bluetooth Connection & Actions (cPad -> NT311)
     // ==========================================
+
+    private void togglePolarity() {
+        boolean newPolarity = !bluetoothManager.isInvertPolarity();
+        bluetoothManager.setInvertPolarity(newPolarity);
+        updatePolarityButtonUI();
+
+        String polarityName = newPolarity ? "INVERTED (0=Open, 1=Closed / N.C.)" : "NORMAL (1=Open, 0=Closed / N.O.)";
+        addLog(new DrawerEvent(
+                DrawerEvent.Type.STATUS_QUERY,
+                "Microswitch Polarity Changed",
+                "Switched to " + polarityName,
+                "Matches standard POS microswitch configuration",
+                false
+        ));
+        Toast.makeText(this, "Polarity set to: " + (newPolarity ? "Inverted (N.C.)" : "Normal (N.O.)"), Toast.LENGTH_SHORT).show();
+
+        if (bluetoothManager.isConnected()) {
+            bluetoothManager.queryStatusRealtime();
+        }
+    }
+
+    private void updatePolarityButtonUI() {
+        if (btnTogglePolarity == null) return;
+        boolean isInverted = bluetoothManager.isInvertPolarity();
+        if (isInverted) {
+            btnTogglePolarity.setText("🔄 Polarity: INVERTED (N.C. 0=Open, 1=Closed)");
+            btnTogglePolarity.setTextColor(Color.parseColor("#34D399"));
+            btnTogglePolarity.setBackgroundColor(Color.parseColor("#064E3B"));
+        } else {
+            btnTogglePolarity.setText("🔄 Polarity: NORMAL (N.O. 1=Open, 0=Closed)");
+            btnTogglePolarity.setTextColor(Color.parseColor("#93C5FD"));
+            btnTogglePolarity.setBackgroundColor(Color.parseColor("#1E3A8A"));
+        }
+    }
 
     private void handleBluetoothConnectAction() {
         if (bluetoothManager.isConnected()) {
@@ -360,7 +400,10 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
                 DrawerEvent.Type.BT_STATUS,
                 "NT311 Hardware Status Byte Received",
                 statusSummary,
-                String.format("Status Byte: 0x%02X (Bit 2 = %d)", statusByte, isDrawerOpen ? 1 : 0),
+                String.format("Status Byte: 0x%02X (Bit 2 = %d, Polarity = %s)", 
+                        statusByte, 
+                        (statusByte >> 2) & 0x01,
+                        bluetoothManager.isInvertPolarity() ? "Inverted" : "Normal"),
                 false
         ));
     }

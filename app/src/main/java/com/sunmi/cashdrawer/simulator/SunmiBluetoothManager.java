@@ -16,11 +16,8 @@ import java.util.UUID;
 
 /**
  * Sunmi Bluetooth Manager for connecting Sunmi cPad to Sunmi NT311 Printer.
- * Implements the official Sunmi Cash Drawer Control API:
- * https://docs.sunmi.com/en-US/cdixeghjk491/xfxdeghjk524
- * - openDrawer(ICallback callback)
- * - getOpenDrawerTimes()
- * - getDrawerStatus()
+ * Supports configurable Pin 3 switch polarity (Normally Open / Normally Closed).
+ * Aligned with official Sunmi externalprinterlibrary2 SDK.
  */
 public class SunmiBluetoothManager implements SunmiCashDrawerApi {
 
@@ -49,6 +46,10 @@ public class SunmiBluetoothManager implements SunmiCashDrawerApi {
     private OutputStream outputStream;
     private Thread workerThread;
     private volatile boolean isConnected = false;
+
+    // Polarity inversion for RJ12 Pin 3 switch:
+    // Default true: Bit 2 == 0 -> OPEN, Bit 2 == 1 -> CLOSED (matches standard NT311 N.C. cash drawer)
+    private boolean invertPolarity = true;
 
     private int openCount = 0;
     private int currentDrawerStatus = 0; // 0: Closed, 1: Open
@@ -86,6 +87,14 @@ public class SunmiBluetoothManager implements SunmiCashDrawerApi {
 
     public boolean isConnected() {
         return isConnected && socket != null && socket.isConnected();
+    }
+
+    public boolean isInvertPolarity() {
+        return invertPolarity;
+    }
+
+    public void setInvertPolarity(boolean invert) {
+        this.invertPolarity = invert;
     }
 
     // ==========================================
@@ -230,9 +239,15 @@ public class SunmiBluetoothManager implements SunmiCashDrawerApi {
                             statusByte = buffer[0];
                         }
 
-                        // Bit breakdown according to Sunmi EscUtil / TransTask:
-                        // Bit 2: Cash drawer sensor on Pin 3 (1 = Open, 0 = Closed)
-                        final boolean isOpen = ((statusByte >> 2) & 0x01) == 1;
+                        // Bit 2: Cash drawer sensor on Pin 3
+                        int bit2 = (statusByte >> 2) & 0x01;
+
+                        // Correct polarity mapping:
+                        // When invertPolarity is true: bit2 == 0 -> OPEN, bit2 == 1 -> CLOSED
+                        // When invertPolarity is false: bit2 == 1 -> OPEN, bit2 == 0 -> CLOSED
+                        final boolean isOpen = invertPolarity ? (bit2 == 0) : (bit2 == 1);
+
+                        // Other status bits
                         final boolean isCoverOpen = ((statusByte >> 5) & 0x01) == 1;
                         final boolean isPaperOut = ((statusByte >> 1) & 0x01) == 1;
                         final boolean isJam = ((statusByte >> 3) & 0x01) == 1;
@@ -244,7 +259,8 @@ public class SunmiBluetoothManager implements SunmiCashDrawerApi {
                         }
 
                         final StringBuilder summary = new StringBuilder();
-                        summary.append(isOpen ? "DRAWER_OPEN" : "DRAWER_CLOSED");
+                        summary.append(isOpen ? "DRAWER_OPEN (In Transaction)" : "DRAWER_CLOSED (Secured)");
+                        summary.append(String.format(" [Bit2=%d, Polarity=%s]", bit2, invertPolarity ? "Inverted" : "Normal"));
                         if (isCoverOpen) summary.append(", COVER_OPEN");
                         if (isPaperOut) summary.append(", OUT_PAPER");
                         if (isJam) summary.append(", JAM_PAPER");
