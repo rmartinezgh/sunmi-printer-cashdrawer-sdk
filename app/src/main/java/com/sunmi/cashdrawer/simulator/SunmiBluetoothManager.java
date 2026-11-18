@@ -16,14 +16,13 @@ import java.util.UUID;
 
 /**
  * Sunmi Bluetooth Manager for connecting Sunmi cPad to Sunmi NT311 Printer.
- * Fully aligned with official Sunmi externalprinterlibrary2 SDK (com.sunmi.externalprinterlibrary2):
- * - EscUtil.openCash(): 1B 70 00 C8 C8 (ESC p 0 200 200)
- * - EscUtil.REAL_TIME: 10 04 01 (DLE EOT 1)
- * - EscUtil.customQueryStatus(): 1D 28 54 01 00 01 (GS ( T 1 0 1)
- * - EscUtil.customQueryStatusStable(): 1D 28 54 01 00 09 (GS ( T 1 0 9)
- * - StatusTask parsing: 1-byte return or 4-byte 0x37 0x09 status packet
+ * Implements the official Sunmi Cash Drawer Control API:
+ * https://docs.sunmi.com/en-US/cdixeghjk491/xfxdeghjk524
+ * - openDrawer(ICallback callback)
+ * - getOpenDrawerTimes()
+ * - getDrawerStatus()
  */
-public class SunmiBluetoothManager {
+public class SunmiBluetoothManager implements SunmiCashDrawerApi {
 
     // Standard Bluetooth Serial Port Profile (SPP) UUID
     private static final UUID SPP_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
@@ -50,6 +49,9 @@ public class SunmiBluetoothManager {
     private OutputStream outputStream;
     private Thread workerThread;
     private volatile boolean isConnected = false;
+
+    private int openCount = 0;
+    private int currentDrawerStatus = 0; // 0: Closed, 1: Open
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private BluetoothCallback callback;
@@ -85,6 +87,38 @@ public class SunmiBluetoothManager {
     public boolean isConnected() {
         return isConnected && socket != null && socket.isConnected();
     }
+
+    // ==========================================
+    // Sunmi Official API Implementation (xfxdeghjk524)
+    // ==========================================
+
+    @Override
+    public void openDrawer(final ICallback callback) {
+        boolean sent = kickCashDrawer();
+        if (callback != null) {
+            mainHandler.post(() -> {
+                if (sent) {
+                    callback.onRunResult(true);
+                } else {
+                    callback.onRaiseException(-1, "Bluetooth not connected to Sunmi printer");
+                }
+            });
+        }
+    }
+
+    @Override
+    public int getOpenDrawerTimes() {
+        return openCount;
+    }
+
+    @Override
+    public int getDrawerStatus() {
+        return currentDrawerStatus;
+    }
+
+    // ==========================================
+    // Bluetooth Connection & Data Handling
+    // ==========================================
 
     @SuppressLint("MissingPermission")
     public List<BluetoothDevice> getPairedDevices() {
@@ -187,8 +221,6 @@ public class SunmiBluetoothManager {
                     int read = inputStream.read(buffer);
                     if (read > 0) {
                         // Official Sunmi StatusTask.getStatus decoding:
-                        // 1. If 1 byte -> buffer[0]
-                        // 2. If 4 bytes with header 0x37 0x09 -> buffer[2]
                         final byte statusByte;
                         if (read == 1) {
                             statusByte = buffer[0];
@@ -200,14 +232,16 @@ public class SunmiBluetoothManager {
 
                         // Bit breakdown according to Sunmi EscUtil / TransTask:
                         // Bit 2: Cash drawer sensor on Pin 3 (1 = Open, 0 = Closed)
-                        // Bit 5: Cover sensor (1 = Open, 0 = Closed)
-                        // Bit 1: Out of paper (1 = Out of paper, 0 = Present)
-                        // Bit 3: Paper Jam (1 = Jam, 0 = OK)
-                        // Bit 6: Over heat (1 = Hot, 0 = OK)
                         final boolean isOpen = ((statusByte >> 2) & 0x01) == 1;
                         final boolean isCoverOpen = ((statusByte >> 5) & 0x01) == 1;
                         final boolean isPaperOut = ((statusByte >> 1) & 0x01) == 1;
                         final boolean isJam = ((statusByte >> 3) & 0x01) == 1;
+
+                        int prevStatus = currentDrawerStatus;
+                        currentDrawerStatus = isOpen ? 1 : 0;
+                        if (prevStatus == 0 && currentDrawerStatus == 1) {
+                            openCount++;
+                        }
 
                         final StringBuilder summary = new StringBuilder();
                         summary.append(isOpen ? "DRAWER_OPEN" : "DRAWER_CLOSED");

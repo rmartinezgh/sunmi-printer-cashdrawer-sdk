@@ -5,12 +5,13 @@ import android.os.Looper;
 
 /**
  * Simulates physical Cash Drawer hardware connected to Sunmi Cloud Printer via RJ12 port:
- * - Solenoid drive on Pin 2
- * - Microswitch sensor on Pin 3
- * - Watchdog timer for Unclosed Overtime Alarm (>30s)
- * - Anti-theft tamper warning on unauthorized manual open
+ * Implements the official Sunmi Cash Drawer Control API:
+ * https://docs.sunmi.com/en-US/cdixeghjk491/xfxdeghjk524
+ * - openDrawer(ICallback callback)
+ * - getOpenDrawerTimes()
+ * - getDrawerStatus()
  */
-public class CashDrawerHardwareSimulator {
+public class CashDrawerHardwareSimulator implements SunmiCashDrawerApi {
 
     public interface HardwareListener {
         void onStateChanged(boolean isOpen, String triggerSource, int openCount);
@@ -59,10 +60,6 @@ public class CashDrawerHardwareSimulator {
         return isOpen;
     }
 
-    public int getOpenCount() {
-        return openCount;
-    }
-
     public boolean isAlarmActive() {
         return isAlarmActive;
     }
@@ -75,6 +72,47 @@ public class CashDrawerHardwareSimulator {
         this.timeoutThresholdSec = Math.max(seconds, 5);
     }
 
+    // ==========================================
+    // Sunmi Official API Implementation (xfxdeghjk524)
+    // ==========================================
+
+    /**
+     * 1. Open the cash drawer via official API
+     */
+    @Override
+    public void openDrawer(final ICallback callback) {
+        kickBySolenoid(0, 50, 500);
+        if (callback != null) {
+            handler.postDelayed(() -> {
+                try {
+                    callback.onRunResult(true);
+                } catch (Exception e) {
+                    callback.onRaiseException(-1, e.getMessage());
+                }
+            }, 50);
+        }
+    }
+
+    /**
+     * 2. Get the number of times the cash drawer has been opened
+     */
+    @Override
+    public int getOpenDrawerTimes() {
+        return openCount;
+    }
+
+    /**
+     * 3. Get cash drawer status (0: Closed, 1: Open)
+     */
+    @Override
+    public int getDrawerStatus() {
+        return isOpen ? 1 : 0;
+    }
+
+    // ==========================================
+    // Hardware Simulation Internals
+    // ==========================================
+
     /**
      * Simulates receiving electrical solenoid pulse from Cloud Printer RJ12 Pin 2
      */
@@ -85,18 +123,18 @@ public class CashDrawerHardwareSimulator {
 
         // Pulse duration delay simulation
         handler.postDelayed(() -> {
-            openDrawer("SOLENOID_PULSE");
+            openInternal("SOLENOID_PULSE");
         }, Math.min(onTimeMs, 100));
     }
 
     /**
-     * Simulates physical key open by cashier or customer
+     * Simulates physical key open by cashier
      */
     public void manualOpen() {
-        openDrawer("MANUAL_KEY");
+        openInternal("MANUAL_KEY");
     }
 
-    private synchronized void openDrawer(String source) {
+    private synchronized void openInternal(String source) {
         if (!isOpen) {
             isOpen = true;
             openCount++;
@@ -138,7 +176,7 @@ public class CashDrawerHardwareSimulator {
      */
     public void forceTriggerAlarm() {
         if (!isOpen) {
-            openDrawer("ALARM_TEST");
+            openInternal("ALARM_TEST");
         }
         isAlarmActive = true;
         if (listener != null) {
