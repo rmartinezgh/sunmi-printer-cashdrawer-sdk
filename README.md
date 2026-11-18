@@ -274,7 +274,43 @@ The simulation app provides an interactive dashboard:
 
 ---
 
-## 6. How to Build & Install the APK
+## 6. Official Sunmi Cash Drawer Control API
+
+Reference: [Sunmi Cash Drawer Control API](https://docs.sunmi.com/en-US/cdixeghjk491/xfxdeghjk524)
+
+Sunmi's standard AIDL and hardware service defines three fundamental cash drawer functions:
+
+```java
+public interface SunmiCashDrawerApi {
+    void openDrawer(ICallback callback);
+    int getOpenDrawerTimes();
+    int getDrawerStatus();
+}
+```
+
+### 1. `openDrawer(ICallback callback)`
+* **Description**: Sends an electrical impulse pulse to trigger and open the cash drawer.
+* **Callback Interface (`ICallback`)**:
+  * `onRunResult(boolean isSuccess)`: Operation completed with success status.
+  * `onReturnString(String result)`: String status response.
+  * `onRaiseException(int code, String msg)`: Error notification if device lacks hardware cash drawer port or disconnected.
+  * `onPrintResult(int code, String msg)`: Execution telemetry.
+
+### 2. `getOpenDrawerTimes()`
+* **Description**: Retrieves the cumulative count of how many times the cash drawer has been opened since system start / shift start.
+* **Return Value**: `int` — total accumulated opening count.
+* **Use Case**: Shift reconciliation, cashier auditing, anti-theft monitoring.
+
+### 3. `getDrawerStatus()`
+* **Description**: Queries the physical microswitch state of the cash drawer (RJ12 Pin 3).
+* **Return Value**:
+  * `0`: Cash Drawer **CLOSED** (Pin 3 HIGH)
+  * `1`: Cash Drawer **OPEN** (Pin 3 LOW)
+  * `-1`: Unsupported or sensor disconnected.
+
+---
+
+## 7. How to Build & Install the APK
 
 ### Android 13 (API 33) Release APK
 The project includes a pre-built, production-signed **Android 13 Release APK**:
