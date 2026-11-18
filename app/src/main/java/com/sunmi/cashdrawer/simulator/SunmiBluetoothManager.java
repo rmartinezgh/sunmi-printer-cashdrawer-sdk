@@ -15,23 +15,32 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Manages Bluetooth SPP connection between Sunmi cPad and Sunmi NT311 Printer.
- * Supports:
- * - Direct ESC/POS Cash Drawer Kick (1B 70 00 19 FA)
- * - Real-Time Status Query (DLE EOT 1: 10 04 01)
- * - Automatic Status Back (ASB: 1D 61 01)
- * - Continuous Background Status Polling & Pin 3 switch detection
+ * Sunmi Bluetooth Manager for connecting Sunmi cPad to Sunmi NT311 Printer.
+ * Fully aligned with official Sunmi externalprinterlibrary2 SDK (com.sunmi.externalprinterlibrary2):
+ * - EscUtil.openCash(): 1B 70 00 C8 C8 (ESC p 0 200 200)
+ * - EscUtil.REAL_TIME: 10 04 01 (DLE EOT 1)
+ * - EscUtil.customQueryStatus(): 1D 28 54 01 00 01 (GS ( T 1 0 1)
+ * - EscUtil.customQueryStatusStable(): 1D 28 54 01 00 09 (GS ( T 1 0 9)
+ * - StatusTask parsing: 1-byte return or 4-byte 0x37 0x09 status packet
  */
 public class SunmiBluetoothManager {
 
     // Standard Bluetooth Serial Port Profile (SPP) UUID
     private static final UUID SPP_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
 
+    // Official Sunmi EscUtil Command Constants
+    public static final byte[] CMD_OPEN_CASH_SUNMI = new byte[] { 0x1B, 0x70, 0x00, (byte) 0xC8, (byte) 0xC8 }; // 1b7000c8c8
+    public static final byte[] CMD_OPEN_CASH_LEGACY = new byte[] { 0x1B, 0x70, 0x00, 0x19, (byte) 0xFA };        // 1b700019fa
+    public static final byte[] CMD_REAL_TIME = new byte[] { 0x10, 0x04, 0x01 };                                   // 100401
+    public static final byte[] CMD_CUSTOM_STATUS = new byte[] { 0x1D, 0x28, 0x54, 0x01, 0x00, 0x01 };             // 1d2854010001
+    public static final byte[] CMD_CUSTOM_STATUS_STABLE = new byte[] { 0x1D, 0x28, 0x54, 0x01, 0x00, 0x09 };      // 1d2854010009
+    public static final byte[] CMD_ASB_ENABLE = new byte[] { 0x1D, 0x61, 0x01 };                                  // 1d6101
+
     public interface BluetoothCallback {
         void onConnected(String deviceName, String macAddress);
         void onDisconnected();
         void onConnectionFailed(String error);
-        void onStatusByteReceived(byte statusByte, boolean isDrawerOpen, boolean isCoverOpen, boolean isPaperOut);
+        void onStatusByteReceived(byte statusByte, boolean isDrawerOpen, boolean isCoverOpen, boolean isPaperOut, String statusSummary);
         void onCommandSent(String hexCommand, String description);
     }
 
@@ -177,23 +186,40 @@ public class SunmiBluetoothManager {
                     if (inputStream == null) break;
                     int read = inputStream.read(buffer);
                     if (read > 0) {
-                        for (int i = 0; i < read; i++) {
-                            final byte b = buffer[i];
-
-                            // DLE EOT 1 status byte parser:
-                            // Bit 2: Cash drawer sensor (1 = Open, 0 = Closed)
-                            // Bit 5: Cover sensor (1 = Open, 0 = Closed)
-                            // Bit 6: Paper sensor (1 = Out of paper, 0 = Present)
-                            final boolean isOpen = (b & 0x04) != 0;
-                            final boolean isCoverOpen = (b & 0x20) != 0;
-                            final boolean isPaperOut = (b & 0x40) != 0;
-
-                            mainHandler.post(() -> {
-                                if (callback != null) {
-                                    callback.onStatusByteReceived(b, isOpen, isCoverOpen, isPaperOut);
-                                }
-                            });
+                        // Official Sunmi StatusTask.getStatus decoding:
+                        // 1. If 1 byte -> buffer[0]
+                        // 2. If 4 bytes with header 0x37 0x09 -> buffer[2]
+                        final byte statusByte;
+                        if (read == 1) {
+                            statusByte = buffer[0];
+                        } else if (read >= 4 && (buffer[0] & 0xFF) == 0x37 && (buffer[1] & 0xFF) == 0x09) {
+                            statusByte = buffer[2];
+                        } else {
+                            statusByte = buffer[0];
                         }
+
+                        // Bit breakdown according to Sunmi EscUtil / TransTask:
+                        // Bit 2: Cash drawer sensor on Pin 3 (1 = Open, 0 = Closed)
+                        // Bit 5: Cover sensor (1 = Open, 0 = Closed)
+                        // Bit 1: Out of paper (1 = Out of paper, 0 = Present)
+                        // Bit 3: Paper Jam (1 = Jam, 0 = OK)
+                        // Bit 6: Over heat (1 = Hot, 0 = OK)
+                        final boolean isOpen = ((statusByte >> 2) & 0x01) == 1;
+                        final boolean isCoverOpen = ((statusByte >> 5) & 0x01) == 1;
+                        final boolean isPaperOut = ((statusByte >> 1) & 0x01) == 1;
+                        final boolean isJam = ((statusByte >> 3) & 0x01) == 1;
+
+                        final StringBuilder summary = new StringBuilder();
+                        summary.append(isOpen ? "DRAWER_OPEN" : "DRAWER_CLOSED");
+                        if (isCoverOpen) summary.append(", COVER_OPEN");
+                        if (isPaperOut) summary.append(", OUT_PAPER");
+                        if (isJam) summary.append(", JAM_PAPER");
+
+                        mainHandler.post(() -> {
+                            if (callback != null) {
+                                callback.onStatusByteReceived(statusByte, isOpen, isCoverOpen, isPaperOut, summary.toString());
+                            }
+                        });
                     }
                 } catch (IOException e) {
                     if (isConnected) {
@@ -246,27 +272,31 @@ public class SunmiBluetoothManager {
     }
 
     /**
-     * [ESC p 0 25 250]: Kick Cash Drawer via Bluetooth (1B 70 00 19 FA)
+     * [ESC p 0 200 200]: Official Sunmi EscUtil.openCash() (1B 70 00 C8 C8)
      */
     public boolean kickCashDrawer() {
-        byte[] kickCmd = new byte[] { 0x1B, 0x70, 0x00, 0x19, (byte) 0xFA };
-        return sendBytes(kickCmd, "Kick Cash Drawer (Pin 2, 50ms pulse)");
+        return sendBytes(CMD_OPEN_CASH_SUNMI, "Sunmi EscUtil.openCash() (Pin 2, 1B 70 00 C8 C8)");
     }
 
     /**
-     * [DLE EOT 1]: Query Real-time Drawer & Printer Status (10 04 01)
+     * [DLE EOT 1]: Official Sunmi EscUtil.REAL_TIME (10 04 01)
      */
     public boolean queryStatusRealtime() {
-        byte[] queryCmd = new byte[] { 0x10, 0x04, 0x01 };
-        return sendBytes(queryCmd, "DLE EOT 1 Real-time Status Query");
+        return sendBytes(CMD_REAL_TIME, "Sunmi EscUtil.REAL_TIME (DLE EOT 1: 10 04 01)");
+    }
+
+    /**
+     * [GS ( T 1 0 1]: Official Sunmi EscUtil.customQueryStatus() (1D 28 54 01 00 01)
+     */
+    public boolean queryCustomStatus() {
+        return sendBytes(CMD_CUSTOM_STATUS, "Sunmi EscUtil.customQueryStatus() (1D 28 54 01 00 01)");
     }
 
     /**
      * [GS a 1]: Enable Automatic Status Back (1D 61 01)
      */
     public boolean enableAutoStatusBack() {
-        byte[] asbCmd = new byte[] { 0x1D, 0x61, 0x01 };
-        return sendBytes(asbCmd, "GS a 1 Enable Automatic Status Back");
+        return sendBytes(CMD_ASB_ENABLE, "GS a 1 Enable Automatic Status Back");
     }
 
     /**

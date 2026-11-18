@@ -346,7 +346,7 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
     }
 
     @Override
-    public void onStatusByteReceived(byte statusByte, boolean isDrawerOpen, boolean isCoverOpen, boolean isPaperOut) {
+    public void onStatusByteReceived(byte statusByte, boolean isDrawerOpen, boolean isCoverOpen, boolean isPaperOut, String statusSummary) {
         // Real-time hardware status received from Sunmi NT311!
         if (isDrawerOpen != hardwareSimulator.isOpen()) {
             if (isDrawerOpen) {
@@ -359,10 +359,7 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
         addLog(new DrawerEvent(
                 DrawerEvent.Type.BT_STATUS,
                 "NT311 Hardware Status Byte Received",
-                String.format("Drawer: %s | Cover: %s | Paper: %s",
-                        isDrawerOpen ? "OPEN (Pin 3 LOW)" : "CLOSED (Pin 3 HIGH)",
-                        isCoverOpen ? "OPEN" : "CLOSED",
-                        isPaperOut ? "EMPTY" : "OK"),
+                statusSummary,
                 String.format("Status Byte: 0x%02X (Bit 2 = %d)", statusByte, isDrawerOpen ? 1 : 0),
                 false
         ));
