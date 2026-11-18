@@ -9,6 +9,7 @@ import android.bluetooth.BluetoothDevice;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.os.Build;
@@ -143,6 +144,10 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
 
         // Settings Dialog
         findViewById(R.id.btnSettings).setOnClickListener(v -> showSettingsDialog());
+
+        // Cash Drawer Logs Report Dialog (from top header or audit section)
+        findViewById(R.id.btnShowReport).setOnClickListener(v -> showCashDrawerReportDialog());
+        findViewById(R.id.btnLogsReport).setOnClickListener(v -> showCashDrawerReportDialog());
 
         // Clear Logs
         findViewById(R.id.btnClearLogs).setOnClickListener(v -> {
@@ -564,6 +569,96 @@ public class MainActivity extends Activity implements CashDrawerHardwareSimulato
             Toast.makeText(this, "Copied to clipboard", Toast.LENGTH_SHORT).show();
         });
         builder.show();
+    }
+
+    private void showCashDrawerReportDialog() {
+        final CashDrawerReportGenerator.ReportSummary summary = CashDrawerReportGenerator.computeSummary(
+                logList,
+                hardwareSimulator.isOpen(),
+                bluetoothManager.isInvertPolarity(),
+                bluetoothManager.getConnectedDeviceName(),
+                SunmiCloudPrinter.DEFAULT_SN
+        );
+
+        final String textReport = CashDrawerReportGenerator.generateTextReport(summary);
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        View view = LayoutInflater.from(this).inflate(R.layout.dialog_drawer_report, null);
+        builder.setView(view);
+
+        final AlertDialog dialog = builder.create();
+
+        TextView tvGenerated = view.findViewById(R.id.tvReportGeneratedAt);
+        TextView tvOpens = view.findViewById(R.id.tvReportOpens);
+        TextView tvCloses = view.findViewById(R.id.tvReportCloses);
+        TextView tvAlerts = view.findViewById(R.id.tvReportAlerts);
+        TextView tvAvgDuration = view.findViewById(R.id.tvReportAvgDuration);
+        TextView tvSubMetrics = view.findViewById(R.id.tvReportSubMetrics);
+        TextView tvFullText = view.findViewById(R.id.tvReportFullText);
+
+        tvGenerated.setText(summary.generatedAt);
+        tvOpens.setText(String.valueOf(summary.totalOpens));
+        tvCloses.setText(String.valueOf(summary.totalCloses));
+        tvAlerts.setText(String.valueOf(summary.overtimeAlerts));
+        tvAvgDuration.setText(String.format(Locale.getDefault(), "%.1fs", summary.averageOpenDurationMs / 1000.0f));
+        tvSubMetrics.setText(String.format(Locale.getDefault(),
+                "Kicks: BT=%d, Cloud=%d, Manual=%d | Max Open: %.1fs | %s",
+                summary.solenoidKicks, summary.cloudKicks, summary.manualOpens,
+                summary.maxOpenDurationMs / 1000.0f,
+                summary.isInvertedPolarity ? "Inverted (N.C.)" : "Normal (N.O.)"));
+        tvFullText.setText(textReport);
+
+        // Print to NT311 Button
+        view.findViewById(R.id.btnPrintReportBt).setOnClickListener(v -> {
+            if (bluetoothManager.isConnected()) {
+                byte[] escPosBytes = CashDrawerReportGenerator.generateEscPosReport(summary);
+                boolean sent = bluetoothManager.printEscPosReport(escPosBytes);
+                if (sent) {
+                    addLog(new DrawerEvent(
+                            DrawerEvent.Type.STATUS_QUERY,
+                            "Cash Drawer Report Printed",
+                            "ESC/POS Audit Report dispatched to NT311 (" + escPosBytes.length + " bytes)",
+                            "Thermal paper printed with usage metrics & security audit",
+                            false
+                    ));
+                    Toast.makeText(this, "Printing report to NT311...", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(this, "Failed to send print job to printer", Toast.LENGTH_SHORT).show();
+                }
+            } else {
+                Toast.makeText(this, "Bluetooth printer not connected. Connect NT311 to print.", Toast.LENGTH_LONG).show();
+            }
+        });
+
+        // Share Report Button
+        view.findViewById(R.id.btnShareReport).setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_SEND);
+            intent.setType("text/plain");
+            intent.putExtra(Intent.EXTRA_SUBJECT, "Sunmi Cash Drawer Audit Report - " + summary.generatedAt);
+            intent.putExtra(Intent.EXTRA_TEXT, textReport);
+            startActivity(Intent.createChooser(intent, "Share Cash Drawer Audit Report"));
+        });
+
+        // Copy Text Button
+        view.findViewById(R.id.btnCopyReportText).setOnClickListener(v -> {
+            ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            cm.setPrimaryClip(ClipData.newPlainText("CashDrawerReport", textReport));
+            Toast.makeText(this, "Report copied to clipboard", Toast.LENGTH_SHORT).show();
+        });
+
+        // Close Button
+        view.findViewById(R.id.btnCloseReport).setOnClickListener(v -> dialog.dismiss());
+
+        dialog.show();
+
+        addLog(new DrawerEvent(
+                DrawerEvent.Type.STATUS_QUERY,
+                "Audit Report Generated",
+                String.format(Locale.getDefault(), "Summary compiled: %d opens, %d alerts, avg %.1fs",
+                        summary.totalOpens, summary.overtimeAlerts, summary.averageOpenDurationMs / 1000.0f),
+                null,
+                false
+        ));
     }
 
     private void showSettingsDialog() {

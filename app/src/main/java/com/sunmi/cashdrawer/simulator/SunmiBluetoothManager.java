@@ -46,6 +46,7 @@ public class SunmiBluetoothManager implements SunmiCashDrawerApi {
     private OutputStream outputStream;
     private Thread workerThread;
     private volatile boolean isConnected = false;
+    private String connectedDeviceName = "Sunmi NT311";
 
     // Polarity inversion for RJ12 Pin 3 switch:
     // Default true: Bit 2 == 0 -> OPEN, Bit 2 == 1 -> CLOSED (matches standard NT311 N.C. cash drawer)
@@ -87,6 +88,10 @@ public class SunmiBluetoothManager implements SunmiCashDrawerApi {
 
     public boolean isConnected() {
         return isConnected && socket != null && socket.isConnected();
+    }
+
+    public String getConnectedDeviceName() {
+        return connectedDeviceName;
     }
 
     public boolean isInvertPolarity() {
@@ -162,6 +167,7 @@ public class SunmiBluetoothManager implements SunmiCashDrawerApi {
 
                 final String name = device.getName() != null ? device.getName() : "Sunmi NT311";
                 final String addr = device.getAddress();
+                connectedDeviceName = name;
 
                 mainHandler.post(() -> {
                     if (callback != null) {
@@ -367,5 +373,13 @@ public class SunmiBluetoothManager implements SunmiCashDrawerApi {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    /**
+     * Print binary ESC/POS Cash Drawer Audit Report directly to NT311
+     */
+    public boolean printEscPosReport(byte[] reportBytes) {
+        if (reportBytes == null || reportBytes.length == 0) return false;
+        return sendBytes(reportBytes, "Print ESC/POS Cash Drawer Audit Report");
     }
 }
